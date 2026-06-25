@@ -1,0 +1,20 @@
+:root {
+	--bg: #F2F2F2;
+	--surface: #FFFFFF;
+	--border: #E0E0E0;
+	--text: #1A1A1A;
+	--muted: #6B6B6B;
+	--accent: #4F6BED;
+	--accent-hover: #3A56D4;
+
+	--radius: 6px;
+	--radius-lg: 12px;
+
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+	--font-ui: 'Inter', sans-serif;
+	--font-mono: 'JetBrains Mono', monospace;
+
+	--transition-fade: opacity 150ms ease;
+}
