@@ -7,6 +7,8 @@ import { getToken, getUser } from '@/lib/auth';
 import type { User } from '@/lib/auth';
 import TaskModal from '@/components/TaskModal';
 import TaskCreateModal from '@/components/TaskCreateModal';
+import AddMemberPanel from '@/components/AddMemberPanel';
+import RejectModal from '@/components/RejectModal';
 
 interface Assignee {
 	id: number;
@@ -50,12 +52,29 @@ interface Project {
 	task_default_submission_mode: 'require' | 'no_require' | 'match_last';
 }
 
+interface AllUser {
+	id: number;
+	full_name: string;
+}
+
 const COLUMNS: { key: Task['status']; label: string }[] = [
 	{ key: 'todo', label: 'To Do' },
 	{ key: 'in_progress', label: 'In Progress' },
 	{ key: 'submitted', label: 'Submitted' },
 	{ key: 'done', label: 'Done' },
 ];
+
+const priorityStyles: Record<string, string> = {
+	high: 'bg-red-50 text-red-800',
+	medium: 'bg-yellow-50 text-yellow-800',
+	low: 'bg-gray-100 text-muted',
+};
+
+const chipStyles: Record<string, string> = {
+	active: 'bg-green-100 text-green-800',
+	inactive: 'bg-gray-100 text-muted',
+	archived: 'bg-gray-100 text-muted',
+};
 
 export default function ProjectBoardPage() {
 	const router = useRouter();
@@ -66,6 +85,7 @@ export default function ProjectBoardPage() {
 	const [hasToken, setHasToken] = useState<boolean | null>(null);
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 	const [showCreateModal, setShowCreateModal] = useState(false);
+	const [rejectTask, setRejectTask] = useState<Task | null>(null);
 
 	useEffect(() => {
 		if (!getToken()) {
@@ -78,42 +98,121 @@ export default function ProjectBoardPage() {
 	}, [router]);
 
 	const { data: project, error, isLoading, mutate } = useSWR<Project>(
-		hasToken ? `/projects/${projectId}` : null
+		hasToken && user ? `/projects/${projectId}?user=${user.id}` : null
 	);
+
+	// Used by AddMemberPanel to know which users are available to add.
+	// Same access rule as everywhere else — admin sees all, members would
+	// only see their own scoped list (not relevant for this dropdown's
+	// purposes, since only admin/lead can add members anyway).
+	const { data: allUsers } = useSWR<AllUser[]>(hasToken ? '/users' : null);
 
 	const isAdmin = user?.system_role === 'admin';
 	const isLead = user?.id === project?.lead_id;
 	const canCreateTask = isAdmin || isLead;
+	const canManageMembers = isAdmin || isLead;
 
 	const tasksByStatus = (status: Task['status']) =>
 		(project?.tasks ?? []).filter(t => t.status === status);
 
 	const defaultRequiresSubmission =
-		project?.task_default_submission_mode === 'no_require' ? false : true;
+    project?.task_default_submission_mode === 'no_require' ? false : true;
+
+	// --- ADD HERE ---
+	if (error?.message === 'You do not have access to this project.') {
+		return (
+			<main className="min-h-screen bg-bg flex items-center justify-center">
+				<div className="bg-surface border border-border rounded-xl shadow-md px-10 py-12 w-full max-w-md flex flex-col gap-4">
+					<h1 className="text-xl font-semibold text-text m-0">Access Denied</h1>
+					<p className="text-sm text-muted m-0">You do not have access to this project.</p>
+					<button
+						className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover self-start"
+						onClick={() => router.replace('/projects')}
+					>
+						Back to Projects
+					</button>
+				</div>
+			</main>
+		);
+	}
+
+	// --- ADD HERE ---
+	if (error && error.message !== 'You do not have access to this project.') {
+		return (
+			<main className="min-h-screen bg-bg flex items-center justify-center">
+				<div className="bg-surface border border-border rounded-xl shadow-md px-10 py-12 w-full max-w-md flex flex-col gap-4">
+					<h1 className="text-xl font-semibold text-text m-0">Project Not Found</h1>
+					<p className="text-sm text-muted m-0">This project does not exist or has been removed.</p>
+					<button
+						className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover self-start"
+						onClick={() => router.replace('/projects')}
+					>
+						Back to Projects
+					</button>
+				</div>
+			</main>
+		);
+	}
+
+	if (!project && isLoading) {
+		return (
+			<main className="min-h-screen bg-bg flex items-center justify-center">
+				<p className="text-sm text-muted">Loading...</p>
+			</main>
+		);
+	}
 
 	return (
-		<main className="root">
-			<aside className="sidebar">
-				{isLoading && <p className="state">Loading...</p>}
-				{error && <p className="stateError">{error.message}</p>}
+		<main className="min-h-screen bg-bg flex">
+			{/* Sidebar */}
+			<aside className="w-60 min-w-60 bg-surface border-r border-border px-6 py-8 flex flex-col gap-4">
+				 <button
+					className="text-sm text-muted cursor-pointer hover:text-text transition-colors bg-transparent border-none p-0 self-start"
+					onClick={() => router.push('/projects')}
+				>
+					← Projects
+				</button>
+				{isLoading && <p className="text-sm text-muted">Loading...</p>}
+				{error && <p className="text-sm text-danger">{error.message}</p>}
 				{project && (
 					<>
-						<h1 className="projectName">{project.name}</h1>
-						<div className="meta">
-							<span className={`chip chip--${project.status}`}>
-								{project.status}
-							</span>
-						</div>
-						<div className="metaRow">
-							<span className="metaLabel">Lead</span>
-							<span className="metaValue">
+						<h1 className="text-lg font-semibold text-text m-0">{project.name}</h1>
+
+						<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded lowercase self-start ${chipStyles[project.status] ?? 'bg-gray-100 text-muted'}`}>
+							{project.status}
+						</span>
+
+						<div className="flex flex-col gap-0.5">
+							<span className="text-xs text-muted uppercase tracking-wide">Lead</span>
+							<span className="text-sm text-text">
 								{project.lead ? project.lead.full_name : '—'}
 							</span>
 						</div>
 
+						{canManageMembers ? (
+							<AddMemberPanel
+								projectId={project.id}
+								members={project.members}
+								allUsers={allUsers ?? []}
+								onMutate={() => mutate()}
+							/>
+						) : (
+							<div className="flex flex-col gap-1">
+								<span className="text-xs text-muted uppercase tracking-wide">Members</span>
+								{project.members.length === 0 && (
+									<span className="text-sm text-muted">No members yet.</span>
+								)}
+								{project.members.map(m => (
+									<span key={m.id} className="text-sm text-text">
+										{m.user.full_name}
+									</span>
+								))}
+							</div>
+						)}
+
 						{canCreateTask && (
 							<button
-								className="newTaskBtn"
+								className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover mt-2"
 								onClick={() => setShowCreateModal(true)}
 							>
 								+ New Task
@@ -123,47 +222,46 @@ export default function ProjectBoardPage() {
 				)}
 			</aside>
 
-			<div className="board">
+			{/* Board */}
+			<div className="flex-1 flex gap-4 px-6 py-8 overflow-x-auto items-start">
 				{COLUMNS.map(col => (
-					<div key={col.key} className="column">
-						<div className="columnHeader">
-							<span className="columnLabel">{col.label}</span>
-							<span className="columnCount">
-								{tasksByStatus(col.key).length}
-							</span>
+					<div key={col.key} className="min-w-60 w-60 flex flex-col gap-2">
+						<div className="flex items-center justify-between px-1 pb-2 border-b border-border">
+							<span className="text-sm font-semibold text-text">{col.label}</span>
+							<span className="font-mono text-xs text-muted">{tasksByStatus(col.key).length}</span>
 						</div>
 
-						<div className="cards">
+						<div className="flex flex-col gap-2">
 							{tasksByStatus(col.key).map(task => (
 								<div
 									key={task.id}
-									className="card"
+									className="bg-surface border border-border rounded shadow-sm p-3 flex flex-col gap-2 cursor-pointer transition-shadow hover:shadow-md"
 									onClick={() => setSelectedTask(task)}
 								>
-									<div className="cardTop">
-										<span className="cardTitle">{task.title}</span>
+									<div className="flex items-start justify-between gap-2">
+										<span className="text-sm font-medium text-text leading-snug">{task.title}</span>
 										{task.requires_submission && (
-											<span className="submissionDot" title="Requires submission" />
+											<span className="w-2 h-2 min-w-2 rounded-full bg-accent mt-1" title="Requires submission" />
 										)}
 									</div>
 
-									<div className="cardMeta">
-										<span className={`priority priority--${task.priority}`}>
+									<div className="flex items-center justify-between gap-2">
+										<span className={`font-mono text-xs tracking-wide px-1.5 py-0.5 rounded lowercase ${priorityStyles[task.priority] ?? 'bg-gray-100 text-muted'}`}>
 											{task.priority}
 										</span>
 										{task.assignee && (
-											<span className="assignee">{task.assignee.full_name}</span>
+											<span className="text-xs text-muted">{task.assignee.full_name}</span>
 										)}
 									</div>
 
 									{task.due_date && (
-										<span className="dueDate">{task.due_date}</span>
+										<span className="font-mono text-xs text-muted">{task.due_date}</span>
 									)}
 								</div>
 							))}
 
 							{tasksByStatus(col.key).length === 0 && (
-								<p className="empty">No tasks</p>
+								<p className="text-xs text-muted px-1 py-2 m-0">No tasks</p>
 							)}
 						</div>
 					</div>
@@ -179,7 +277,18 @@ export default function ProjectBoardPage() {
 					onMutate={() => mutate()}
 					onReject={(task) => {
 						setSelectedTask(null);
+						setRejectTask(task);
 					}}
+				/>
+			)}
+
+			{rejectTask && user && project && (
+				<RejectModal
+					task={rejectTask}
+					members={project.members}
+					currentUser={user}
+					onClose={() => setRejectTask(null)}
+					onMutate={() => mutate()}
 				/>
 			)}
 
@@ -193,226 +302,6 @@ export default function ProjectBoardPage() {
 					onMutate={() => mutate()}
 				/>
 			)}
-
-			<style jsx>{`
-				.root {
-					min-height: 100vh;
-					background: var(--bg);
-					display: flex;
-				}
-
-				.sidebar {
-					width: 240px;
-					min-width: 240px;
-					background: var(--surface);
-					border-right: 1px solid var(--border);
-					padding: 32px 24px;
-					display: flex;
-					flex-direction: column;
-					gap: 16px;
-				}
-
-				.projectName {
-					font-family: var(--font-ui);
-					font-size: 18px;
-					font-weight: 600;
-					color: var(--text);
-					margin: 0;
-				}
-
-				.meta {
-					display: flex;
-					gap: 8px;
-				}
-
-				.metaRow {
-					display: flex;
-					flex-direction: column;
-					gap: 2px;
-				}
-
-				.metaLabel {
-					font-family: var(--font-ui);
-					font-size: 11px;
-					color: var(--muted);
-					text-transform: uppercase;
-					letter-spacing: 0.05em;
-				}
-
-				.metaValue {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: var(--text);
-				}
-
-				.chip {
-					font-family: var(--font-mono);
-					font-size: 11px;
-					letter-spacing: 0.05em;
-					padding: 3px 8px;
-					border-radius: 4px;
-					text-transform: lowercase;
-				}
-
-				.chip--active { background: #E8F5E9; color: #2E7D32; }
-				.chip--inactive { background: #F5F5F5; color: var(--muted); }
-				.chip--archived { background: #F5F5F5; color: var(--muted); }
-
-				.newTaskBtn {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					font-weight: 500;
-					color: #FFFFFF;
-					background: var(--accent);
-					border: none;
-					border-radius: var(--radius);
-					padding: 9px 16px;
-					cursor: pointer;
-					transition: background 150ms ease;
-					margin-top: 8px;
-				}
-
-				.newTaskBtn:hover {
-					background: var(--accent-hover);
-				}
-
-				.board {
-					flex: 1;
-					display: flex;
-					gap: 16px;
-					padding: 32px 24px;
-					overflow-x: auto;
-					align-items: flex-start;
-				}
-
-				.column {
-					min-width: 240px;
-					width: 240px;
-					display: flex;
-					flex-direction: column;
-					gap: 8px;
-				}
-
-				.columnHeader {
-					display: flex;
-					align-items: center;
-					justify-content: space-between;
-					padding: 0 4px 8px;
-					border-bottom: 1px solid var(--border);
-				}
-
-				.columnLabel {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					font-weight: 600;
-					color: var(--text);
-				}
-
-				.columnCount {
-					font-family: var(--font-mono);
-					font-size: 11px;
-					color: var(--muted);
-				}
-
-				.cards {
-					display: flex;
-					flex-direction: column;
-					gap: 8px;
-				}
-
-				.card {
-					background: var(--surface);
-					border: 1px solid var(--border);
-					border-radius: var(--radius);
-					padding: 12px;
-					display: flex;
-					flex-direction: column;
-					gap: 8px;
-					box-shadow: var(--shadow-sm);
-					cursor: pointer;
-					transition: box-shadow 150ms ease;
-				}
-
-				.card:hover {
-					box-shadow: var(--shadow-md);
-				}
-
-				.cardTop {
-					display: flex;
-					align-items: flex-start;
-					justify-content: space-between;
-					gap: 8px;
-				}
-
-				.cardTitle {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					font-weight: 500;
-					color: var(--text);
-					line-height: 1.4;
-				}
-
-				.submissionDot {
-					width: 8px;
-					height: 8px;
-					min-width: 8px;
-					border-radius: 50%;
-					background: var(--accent);
-					margin-top: 3px;
-				}
-
-				.cardMeta {
-					display: flex;
-					align-items: center;
-					justify-content: space-between;
-					gap: 8px;
-				}
-
-				.priority {
-					font-family: var(--font-mono);
-					font-size: 10px;
-					letter-spacing: 0.05em;
-					padding: 2px 6px;
-					border-radius: 4px;
-					text-transform: lowercase;
-				}
-
-				.priority--high { background: #FDECEA; color: #C62828; }
-				.priority--medium { background: #FFF8E1; color: #F57F17; }
-				.priority--low { background: #F5F5F5; color: var(--muted); }
-
-				.assignee {
-					font-family: var(--font-ui);
-					font-size: 11px;
-					color: var(--muted);
-				}
-
-				.dueDate {
-					font-family: var(--font-mono);
-					font-size: 11px;
-					color: var(--muted);
-				}
-
-				.empty {
-					font-family: var(--font-ui);
-					font-size: 12px;
-					color: var(--muted);
-					padding: 8px 4px;
-					margin: 0;
-				}
-
-				.state {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: var(--muted);
-				}
-
-				.stateError {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: #D94F4F;
-				}
-			`}</style>
 		</main>
 	);
 }

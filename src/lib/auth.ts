@@ -1,4 +1,5 @@
 import Cookies from 'js-cookie';
+import { mutate } from 'swr';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
@@ -36,6 +37,17 @@ export const clearUser = (): void => {
 	localStorage.removeItem(USER_KEY);
 };
 
+// --- SWR cache helper ---
+
+// SWR's default cache is an in-memory Map, not localStorage — there is no
+// 'swr-cache' key to remove. This clears every actual cached key by
+// calling the global mutate() with no data and a special clear flag, which
+// is SWR's documented way to wipe its entire cache imperatively (used
+// outside of any component, e.g. here in a plain auth helper).
+const clearSwrCache = (): void => {
+	mutate(() => true, undefined, { revalidate: false });
+};
+
 // --- Auth calls ---
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -56,6 +68,7 @@ export const login = async (
 	}
 
 	const data = await res.json();
+	clearSwrCache();
 	setToken(data.token);
 	setUser(data.user);
 	return data;
@@ -73,7 +86,7 @@ export const logout = async (): Promise<void> => {
 			},
 		});
 	}
-
+	clearSwrCache();
 	clearToken();
 	clearUser();
 };

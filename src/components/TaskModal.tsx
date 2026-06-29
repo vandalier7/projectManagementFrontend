@@ -36,6 +36,20 @@ interface Props {
 	onReject: (task: Task) => void;
 }
 
+const statusChip: Record<string, string> = {
+	todo: 'bg-gray-100 text-muted',
+	in_progress: 'bg-blue-50 text-blue-800',
+	submitted: 'bg-yellow-50 text-yellow-800',
+	done: 'bg-green-100 text-green-800',
+	closed: 'bg-gray-100 text-muted',
+};
+
+const priorityChip: Record<string, string> = {
+	high: 'bg-red-50 text-red-800',
+	medium: 'bg-yellow-50 text-yellow-800',
+	low: 'bg-gray-100 text-muted',
+};
+
 export default function TaskModal({
 	task,
 	projectLeadId,
@@ -90,7 +104,6 @@ export default function TaskModal({
 		}
 	};
 
-	// Revision chain — walk back through previous tasks
 	const chain: Task[] = [];
 	let cursor: Task | null = task.previous_task;
 	while (cursor) {
@@ -99,64 +112,74 @@ export default function TaskModal({
 	}
 
 	return (
-		<div className="overlay" onClick={onClose}>
-			<div className="modal" onClick={e => e.stopPropagation()}>
-				<div className="modalHeader">
-					<div className="titleRow">
-						<h2 className="taskTitle">{task.title}</h2>
+		<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]" onClick={onClose}>
+			<div className="bg-surface border border-border rounded-xl shadow-md w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+
+				{/* Header */}
+				<div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-border gap-3">
+					<div className="flex items-center gap-2">
+						<h2 className="text-base font-semibold text-text m-0">{task.title}</h2>
 						{task.requires_submission && (
-							<span className="submissionDot" title="Requires submission" />
+							<span className="w-2 h-2 min-w-2 rounded-full bg-accent" title="Requires submission" />
 						)}
 					</div>
-					<button className="closeBtn" onClick={onClose}>✕</button>
+					<button className="text-sm text-muted bg-transparent border-none cursor-pointer hover:text-text p-0 leading-none" onClick={onClose}>✕</button>
 				</div>
 
-				<div className="modalBody">
-					<div className="metaGrid">
-						<div className="metaItem">
-							<span className="metaLabel">Status</span>
-							<span className={`chip chip--${task.status}`}>{task.status}</span>
+				{/* Body */}
+				<div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+					{/* Meta grid */}
+					<div className="grid grid-cols-2 gap-3">
+						<div className="flex flex-col gap-1">
+							<span className="text-xs text-muted uppercase tracking-wide">Status</span>
+							<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded lowercase self-start ${statusChip[task.status] ?? 'bg-gray-100 text-muted'}`}>
+								{task.status}
+							</span>
 						</div>
-						<div className="metaItem">
-							<span className="metaLabel">Priority</span>
-							<span className={`priority priority--${task.priority}`}>{task.priority}</span>
+						<div className="flex flex-col gap-1">
+							<span className="text-xs text-muted uppercase tracking-wide">Priority</span>
+							<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded lowercase self-start ${priorityChip[task.priority] ?? 'bg-gray-100 text-muted'}`}>
+								{task.priority}
+							</span>
 						</div>
-						<div className="metaItem">
-							<span className="metaLabel">Assignee</span>
-							<span className="metaValue">{task.assignee?.full_name ?? '—'}</span>
+						<div className="flex flex-col gap-1">
+							<span className="text-xs text-muted uppercase tracking-wide">Assignee</span>
+							<span className="text-sm text-text">{task.assignee?.full_name ?? '—'}</span>
 						</div>
-						<div className="metaItem">
-							<span className="metaLabel">Due</span>
-							<span className="metaValue">{task.due_date ?? '—'}</span>
+						<div className="flex flex-col gap-1">
+							<span className="text-xs text-muted uppercase tracking-wide">Due</span>
+							<span className="text-sm text-text">{task.due_date ?? '—'}</span>
 						</div>
 					</div>
 
+					{/* Description */}
 					{task.description && (
-						<div className="section">
-							<span className="sectionLabel">Description</span>
-							<p className="description">{task.description}</p>
+						<div className="flex flex-col gap-1.5">
+							<span className="text-xs text-muted uppercase tracking-wide">Description</span>
+							<p className="text-sm text-text m-0 leading-relaxed">{task.description}</p>
 						</div>
 					)}
 
+					{/* Review comment */}
 					{task.review_comment && (
-						<div className="section reviewSection">
-							<span className="sectionLabel">Review Comment</span>
-							<p className="description">{task.review_comment}</p>
+						<div className="flex flex-col gap-1.5 bg-yellow-50 border border-yellow-200 rounded p-3">
+							<span className="text-xs text-muted uppercase tracking-wide">Review Comment</span>
+							<p className="text-sm text-text m-0 leading-relaxed">{task.review_comment}</p>
 						</div>
 					)}
 
-					{/* Submission fields for assignee */}
+					{/* Submission fields */}
 					{canSubmit && (
-						<div className="section">
-							<span className="sectionLabel">Submission</span>
+						<div className="flex flex-col gap-2">
+							<span className="text-xs text-muted uppercase tracking-wide">Submission</span>
 							<input
-								className="input"
+								className="text-sm text-text bg-bg border border-border rounded px-3 py-2 outline-none focus:border-accent transition-colors"
 								placeholder="Submission link"
 								value={submissionLink}
 								onChange={e => setSubmissionLink(e.target.value)}
 							/>
 							<textarea
-								className="textarea"
+								className="text-sm text-text bg-bg border border-border rounded px-3 py-2 outline-none focus:border-accent transition-colors resize-none min-h-20"
 								placeholder="Submission notes (optional)"
 								value={submissionNotes}
 								onChange={e => setSubmissionNotes(e.target.value)}
@@ -164,30 +187,30 @@ export default function TaskModal({
 						</div>
 					)}
 
-					{/* Submission info if already submitted */}
+					{/* Submitted info */}
 					{task.submission_link && task.status === 'submitted' && (
-						<div className="section">
-							<span className="sectionLabel">Submitted</span>
-							<a className="link" href={task.submission_link} target="_blank" rel="noreferrer">
+						<div className="flex flex-col gap-1.5">
+							<span className="text-xs text-muted uppercase tracking-wide">Submitted</span>
+							<a className="font-mono text-xs text-accent break-all no-underline hover:underline" href={task.submission_link} target="_blank" rel="noreferrer">
 								{task.submission_link}
 							</a>
 							{task.submission_notes && (
-								<p className="description">{task.submission_notes}</p>
+								<p className="text-sm text-text m-0 leading-relaxed">{task.submission_notes}</p>
 							)}
 						</div>
 					)}
 
 					{/* Revision chain */}
 					{chain.length > 0 && (
-						<div className="section">
-							<span className="sectionLabel">Revision History</span>
-							<div className="chain">
+						<div className="flex flex-col gap-2">
+							<span className="text-xs text-muted uppercase tracking-wide">Revision History</span>
+							<div className="flex flex-col gap-2">
 								{chain.map((prev, i) => (
-									<div key={prev.id} className="chainItem">
-										<span className="chainIndex">#{chain.length - i}</span>
-										<span className="chainTitle">{prev.title}</span>
+									<div key={prev.id} className="flex flex-col gap-0.5 bg-bg border border-border rounded px-3 py-2">
+										<span className="font-mono text-xs text-muted">#{chain.length - i}</span>
+										<span className="text-xs font-medium text-text">{prev.title}</span>
 										{prev.review_comment && (
-											<span className="chainComment">{prev.review_comment}</span>
+											<span className="text-xs text-muted italic">{prev.review_comment}</span>
 										)}
 									</div>
 								))}
@@ -195,47 +218,62 @@ export default function TaskModal({
 						</div>
 					)}
 
-					{error && <p className="errorMsg">{error}</p>}
+					{error && <p className="text-sm text-danger m-0">{error}</p>}
 				</div>
 
-				<div className="modalFooter">
-					{/* Admin/lead actions */}
+				{/* Footer */}
+				<div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2">
 					{canEdit && (
-						<button className="btn danger" disabled={loading} onClick={async () => {
-                            if (confirm('Delete this task?')) {
-                                await apiClient(`/tasks/${task.id}`, {
-                                    method: 'DELETE',
-                                    body: JSON.stringify({ acting_as_user_id: currentUser.id }),
-                                });
-                                onMutate();
-                                onClose();
-                            }
-                        }}>
+						<button
+							className="text-sm font-medium text-danger bg-surface border border-danger rounded px-4 py-2 cursor-pointer transition-colors hover:bg-red-50 disabled:opacity-50 mr-auto"
+							disabled={loading}
+							onClick={async () => {
+								if (confirm('Delete this task?')) {
+									await apiClient(`/tasks/${task.id}`, {
+										method: 'DELETE',
+										body: JSON.stringify({ acting_as_user_id: currentUser.id }),
+									});
+									onMutate();
+									onClose();
+								}
+							}}
+						>
 							Delete
 						</button>
 					)}
 
 					{canReview && (
 						<>
-							<button className="btn secondary" disabled={loading} onClick={() => onReject(task)}>
+							<button
+								className="text-sm font-medium text-text bg-surface border border-border rounded px-4 py-2 cursor-pointer transition-colors hover:bg-bg disabled:opacity-50"
+								disabled={loading}
+								onClick={() => onReject(task)}
+							>
 								Reject
 							</button>
-							<button className="btn primary" disabled={loading} onClick={() => patch({ status: 'done' })}>
+							<button
+								className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover disabled:opacity-50"
+								disabled={loading}
+								onClick={() => patch({ status: 'done' })}
+							>
 								Approve
 							</button>
 						</>
 					)}
 
-					{/* Assignee actions */}
 					{canTakeback && (
-						<button className="btn secondary" disabled={loading} onClick={() => patch({ status: 'in_progress' })}>
+						<button
+							className="text-sm font-medium text-text bg-surface border border-border rounded px-4 py-2 cursor-pointer transition-colors hover:bg-bg disabled:opacity-50"
+							disabled={loading}
+							onClick={() => patch({ status: 'in_progress' })}
+						>
 							Take Back
 						</button>
 					)}
 
 					{canSubmit && (
 						<button
-							className="btn primary"
+							className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
 							disabled={loading || !submissionLink}
 							onClick={() => patch({ status: 'submitted', submission_link: submissionLink, submission_notes: submissionNotes })}
 						>
@@ -244,325 +282,26 @@ export default function TaskModal({
 					)}
 
 					{canSelfComplete && (
-						<button className="btn primary" disabled={loading} onClick={() => patch({ status: 'done' })}>
+						<button
+							className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover disabled:opacity-50"
+							disabled={loading}
+							onClick={() => patch({ status: 'done' })}
+						>
 							Mark as Done
 						</button>
 					)}
 
-                    {isAssignee && task.status === 'todo' && (
-                        <button className="btn primary" disabled={loading} onClick={() => patch({ status: 'in_progress' })}>
-                            Start Working
-                        </button>
-                    )}
+					{isAssignee && task.status === 'todo' && (
+						<button
+							className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover disabled:opacity-50"
+							disabled={loading}
+							onClick={() => patch({ status: 'in_progress' })}
+						>
+							Start Working
+						</button>
+					)}
 				</div>
 			</div>
-
-			<style jsx>{`
-				.overlay {
-					position: fixed;
-					inset: 0;
-					background: rgba(0, 0, 0, 0.4);
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					z-index: 100;
-				}
-
-				.modal {
-					background: var(--surface);
-					border: 1px solid var(--border);
-					border-radius: var(--radius-lg);
-					box-shadow: var(--shadow-md);
-					width: 100%;
-					max-width: 560px;
-					max-height: 85vh;
-					display: flex;
-					flex-direction: column;
-					overflow: hidden;
-				}
-
-				.modalHeader {
-					display: flex;
-					align-items: flex-start;
-					justify-content: space-between;
-					padding: 24px 24px 16px;
-					border-bottom: 1px solid var(--border);
-					gap: 12px;
-				}
-
-				.titleRow {
-					display: flex;
-					align-items: center;
-					gap: 8px;
-				}
-
-				.taskTitle {
-					font-family: var(--font-ui);
-					font-size: 16px;
-					font-weight: 600;
-					color: var(--text);
-					margin: 0;
-				}
-
-				.submissionDot {
-					width: 8px;
-					height: 8px;
-					min-width: 8px;
-					border-radius: 50%;
-					background: var(--accent);
-				}
-
-				.closeBtn {
-					background: none;
-					border: none;
-					font-size: 14px;
-					color: var(--muted);
-					cursor: pointer;
-					padding: 0;
-					line-height: 1;
-				}
-
-				.closeBtn:hover {
-					color: var(--text);
-				}
-
-				.modalBody {
-					flex: 1;
-					overflow-y: auto;
-					padding: 20px 24px;
-					display: flex;
-					flex-direction: column;
-					gap: 20px;
-				}
-
-				.metaGrid {
-					display: grid;
-					grid-template-columns: 1fr 1fr;
-					gap: 12px;
-				}
-
-				.metaItem {
-					display: flex;
-					flex-direction: column;
-					gap: 4px;
-				}
-
-				.metaLabel {
-					font-family: var(--font-ui);
-					font-size: 11px;
-					color: var(--muted);
-					text-transform: uppercase;
-					letter-spacing: 0.05em;
-				}
-
-				.metaValue {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: var(--text);
-				}
-
-				.chip {
-					font-family: var(--font-mono);
-					font-size: 11px;
-					letter-spacing: 0.05em;
-					padding: 3px 8px;
-					border-radius: 4px;
-					text-transform: lowercase;
-					display: inline-block;
-				}
-
-				.chip--todo { background: #F5F5F5; color: var(--muted); }
-				.chip--in_progress { background: #E3F2FD; color: #1565C0; }
-				.chip--submitted { background: #FFF8E1; color: #F57F17; }
-				.chip--done { background: #E8F5E9; color: #2E7D32; }
-				.chip--closed { background: #F5F5F5; color: var(--muted); }
-
-				.priority {
-					font-family: var(--font-mono);
-					font-size: 11px;
-					letter-spacing: 0.05em;
-					padding: 3px 8px;
-					border-radius: 4px;
-					text-transform: lowercase;
-					display: inline-block;
-				}
-
-				.priority--high { background: #FDECEA; color: #C62828; }
-				.priority--medium { background: #FFF8E1; color: #F57F17; }
-				.priority--low { background: #F5F5F5; color: var(--muted); }
-
-				.section {
-					display: flex;
-					flex-direction: column;
-					gap: 8px;
-				}
-
-				.reviewSection {
-					background: #FFF8E1;
-					border: 1px solid #FFE082;
-					border-radius: var(--radius);
-					padding: 12px;
-				}
-
-				.sectionLabel {
-					font-family: var(--font-ui);
-					font-size: 11px;
-					color: var(--muted);
-					text-transform: uppercase;
-					letter-spacing: 0.05em;
-				}
-
-				.description {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: var(--text);
-					margin: 0;
-					line-height: 1.6;
-				}
-
-				.input {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: var(--text);
-					background: var(--bg);
-					border: 1px solid var(--border);
-					border-radius: var(--radius);
-					padding: 8px 10px;
-					outline: none;
-					transition: border-color 150ms ease;
-				}
-
-				.input:focus {
-					border-color: var(--accent);
-				}
-
-				.textarea {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: var(--text);
-					background: var(--bg);
-					border: 1px solid var(--border);
-					border-radius: var(--radius);
-					padding: 8px 10px;
-					outline: none;
-					resize: vertical;
-					min-height: 80px;
-					transition: border-color 150ms ease;
-				}
-
-				.textarea:focus {
-					border-color: var(--accent);
-				}
-
-				.link {
-					font-family: var(--font-mono);
-					font-size: 12px;
-					color: var(--accent);
-					text-decoration: none;
-					word-break: break-all;
-				}
-
-				.link:hover {
-					text-decoration: underline;
-				}
-
-				.chain {
-					display: flex;
-					flex-direction: column;
-					gap: 8px;
-				}
-
-				.chainItem {
-					display: flex;
-					flex-direction: column;
-					gap: 2px;
-					padding: 8px 12px;
-					background: var(--bg);
-					border-radius: var(--radius);
-					border: 1px solid var(--border);
-				}
-
-				.chainIndex {
-					font-family: var(--font-mono);
-					font-size: 10px;
-					color: var(--muted);
-				}
-
-				.chainTitle {
-					font-family: var(--font-ui);
-					font-size: 12px;
-					color: var(--text);
-					font-weight: 500;
-				}
-
-				.chainComment {
-					font-family: var(--font-ui);
-					font-size: 12px;
-					color: var(--muted);
-					font-style: italic;
-				}
-
-				.errorMsg {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: #D94F4F;
-					margin: 0;
-				}
-
-				.modalFooter {
-					padding: 16px 24px;
-					border-top: 1px solid var(--border);
-					display: flex;
-					justify-content: flex-end;
-					gap: 8px;
-				}
-
-				.btn {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					font-weight: 500;
-					border-radius: var(--radius);
-					padding: 8px 16px;
-					cursor: pointer;
-					transition: background 150ms ease;
-					border: none;
-				}
-
-				.btn:disabled {
-					opacity: 0.5;
-					cursor: not-allowed;
-				}
-
-				.btn.primary {
-					background: var(--accent);
-					color: #FFFFFF;
-				}
-
-				.btn.primary:hover:not(:disabled) {
-					background: var(--accent-hover);
-				}
-
-				.btn.secondary {
-					background: var(--surface);
-					color: var(--text);
-					border: 1px solid var(--border);
-				}
-
-				.btn.secondary:hover:not(:disabled) {
-					background: var(--bg);
-				}
-
-				.btn.danger {
-					background: var(--surface);
-					color: #D94F4F;
-					border: 1px solid #D94F4F;
-					margin-right: auto;
-				}
-
-				.btn.danger:hover:not(:disabled) {
-					background: #FDF2F2;
-				}
-			`}</style>
 		</div>
 	);
 }

@@ -1,130 +1,65 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getToken, logout } from '@/lib/auth';
+import { getToken, getUser, logout, clearToken, clearUser } from '@/lib/auth';
+import type { User } from '@/lib/auth';
+import { mutate } from 'swr';
 
 export default function DashboardPage() {
 	const router = useRouter();
+	const [user, setUser] = useState<User | null>(null);
+	const [loggingOut, setLoggingOut] = useState(false);
 
 	useEffect(() => {
 		const token = getToken();
 		if (!token) {
-			router.push('/login');
+			router.replace('/login');
+			return;
 		}
+		setUser(getUser());
 	}, [router]);
 
-	const handleLogout = async () => {
-		await logout();
-		router.push('/login');
+	const handleLogout = () => {
+		clearToken();
+		clearUser();
+		localStorage.removeItem('swr-cache');
+		mutate(() => true, undefined, { revalidate: false }); // clears all SWR cache keys
+		logout();
+		router.replace('/login');
 	};
 
 	return (
-		<main className="dashRoot">
-			<div className="dashCard">
-				<h1 className="dashTitle">Dashboard</h1>
+		<main className="min-h-screen bg-bg flex items-center justify-center">
+			<div className="bg-surface border border-border rounded-xl shadow-md px-10 py-12 w-full max-w-md flex flex-col gap-8">
+				<h1 className="text-2xl font-semibold text-text m-0">Dashboard</h1>
 
-				<div className="dashActions">
+				<div className="flex flex-col gap-3">
 					<button
-						className="dashBtn primary"
+						className="text-sm font-medium text-white bg-accent rounded py-2.5 border-none cursor-pointer transition-colors hover:bg-accent-hover w-full"
 						onClick={() => router.push('/projects')}
 					>
 						View Projects
 					</button>
 
-					<button
-						className="dashBtn secondary"
-						onClick={() => router.push('/users/new')}
-					>
-						Add New Member
-					</button>
+					{user?.system_role === 'admin' && (
+						<button
+							className="text-sm font-medium text-text bg-surface border border-border rounded py-2.5 cursor-pointer transition-colors hover:bg-bg w-full"
+							onClick={() => router.push('/users/new')}
+						>
+							Add New Member
+						</button>
+					)}
 
 					<button
-						className="dashBtn danger"
+						className="text-sm font-medium text-danger bg-surface border border-danger rounded py-2.5 cursor-pointer transition-colors hover:bg-red-50 w-full disabled:opacity-60 disabled:cursor-not-allowed"
 						onClick={handleLogout}
+						disabled={loggingOut}
 					>
-						Log out
+						{loggingOut ? 'Logging out...' : 'Log out'}
 					</button>
 				</div>
 			</div>
-
-			<style jsx>{`
-				.dashRoot {
-					min-height: 100vh;
-					background: var(--bg);
-					display: flex;
-					align-items: center;
-					justify-content: center;
-				}
-
-				.dashCard {
-					background: var(--surface);
-					border: 1px solid var(--border);
-					border-radius: var(--radius-lg);
-					box-shadow: var(--shadow-md);
-					padding: 48px 40px;
-					width: 100%;
-					max-width: 400px;
-					display: flex;
-					flex-direction: column;
-					gap: 32px;
-				}
-
-				.dashTitle {
-					font-family: var(--font-ui);
-					font-size: 24px;
-					font-weight: 600;
-					color: var(--text);
-					margin: 0;
-				}
-
-				.dashActions {
-					display: flex;
-					flex-direction: column;
-					gap: 12px;
-				}
-
-				.dashBtn {
-					font-family: var(--font-ui);
-					font-size: 14px;
-					font-weight: 500;
-					border-radius: var(--radius);
-					padding: 11px;
-					cursor: pointer;
-					transition: background 150ms ease;
-					border: none;
-					width: 100%;
-				}
-
-				.dashBtn.primary {
-					background: var(--accent);
-					color: #FFFFFF;
-				}
-
-				.dashBtn.primary:hover {
-					background: var(--accent-hover);
-				}
-
-				.dashBtn.secondary {
-					background: var(--surface);
-					color: var(--text);
-					border: 1px solid var(--border);
-				}
-
-				.dashBtn.secondary:hover {
-					background: var(--bg);
-				}
-
-				.dashBtn.danger {
-					background: var(--surface);
-					color: #D94F4F;
-					border: 1px solid #D94F4F;
-				}
-
-				.dashBtn.danger:hover {
-					background: #FDF2F2;
-				}
-			`}</style>
 		</main>
 	);
 }

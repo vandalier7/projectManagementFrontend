@@ -15,6 +15,12 @@ interface Project {
 	} | null;
 }
 
+const chipStyles: Record<string, string> = {
+	active: 'bg-green-100 text-green-800',
+	inactive: 'bg-gray-100 text-muted',
+	archived: 'bg-gray-100 text-muted',
+};
+
 export default function ProjectsPage() {
 	const router = useRouter();
 
@@ -32,21 +38,25 @@ export default function ProjectsPage() {
 		setHasToken(true);
 	}, [router]);
 
-	// Only start fetching once we've confirmed a token exists. Passing
-	// null as the key tells SWR "don't fetch yet" — this avoids firing
-	// a request that we know will 401 during the brief moment before the
-	// auth check above has run.
 	const { data: projects, error, isLoading } = useSWR<Project[]>(
-		hasToken ? '/projects' : null
+		hasToken && user ? `/projects?user=${user.id}` : null
 	);
 
 	return (
-		<main className="root">
-			<div className="header">
-				<h1 className="title">Projects</h1>
+		<main className="min-h-screen bg-bg px-15 py-12">
+			<div className="flex items-center justify-between mb-8 max-w-5xl">
+				<div className="flex items-center gap-4">
+					<button
+						className="text-sm text-muted cursor-pointer hover:text-text transition-colors bg-transparent border-none p-0"
+						onClick={() => router.push('/dashboard')}
+					>
+						← Dashboard
+					</button>
+					<h1 className="text-2xl font-semibold text-text m-0">Projects</h1>
+				</div>
 				{user?.system_role === 'admin' && (
 					<button
-						className="newBtn"
+						className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover"
 						onClick={() => router.push('/projects/new')}
 					>
 						New Project
@@ -54,154 +64,33 @@ export default function ProjectsPage() {
 				)}
 			</div>
 
-			{isLoading && <p className="state">Loading...</p>}
-			{error && <p className="stateError">{error.message}</p>}
-
+			{isLoading && <p className="text-sm text-muted">Loading...</p>}
+			{error && <p className="text-sm text-danger">{error.message}</p>}
 			{!isLoading && !error && projects?.length === 0 && (
-				<p className="state">No projects yet.</p>
+				<p className="text-sm text-muted">No projects yet.</p>
 			)}
 
-			<div className="grid">
+			<div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 max-w-5xl">
 				{projects?.map(project => (
 					<div
 						key={project.id}
-						className="card"
+						className="bg-surface border border-border rounded-xl shadow-sm p-5 cursor-pointer flex flex-col gap-2 transition-shadow hover:shadow-md"
 						onClick={() => router.push(`/projects/${project.id}`)}
 					>
-						<div className="cardTop">
-							<span className="cardName">{project.name}</span>
-							<span className={`chip chip--${project.status}`}>
+						<div className="flex items-center justify-between gap-2">
+							<span className="text-sm font-semibold text-text">
+								{project.name}
+							</span>
+							<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded lowercase whitespace-nowrap ${chipStyles[project.status] ?? 'bg-gray-100 text-muted'}`}>
 								{project.status}
 							</span>
 						</div>
-						<span className="cardLead">
+						<span className="text-xs text-muted">
 							{project.lead ? project.lead.full_name : 'No lead assigned'}
 						</span>
 					</div>
 				))}
 			</div>
-
-			<style jsx>{`
-				.root {
-					min-height: 100vh;
-					background: var(--bg);
-					padding: 48px 60px;
-				}
-
-				.header {
-					display: flex;
-					align-items: center;
-					justify-content: space-between;
-					margin-bottom: 32px;
-					max-width: 1100px;
-				}
-
-				.title {
-					font-family: var(--font-ui);
-					font-size: 24px;
-					font-weight: 600;
-					color: var(--text);
-					margin: 0;
-				}
-
-				.newBtn {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					font-weight: 500;
-					color: #FFFFFF;
-					background: var(--accent);
-					border: none;
-					border-radius: var(--radius);
-					padding: 9px 16px;
-					cursor: pointer;
-					transition: background 150ms ease;
-				}
-
-				.newBtn:hover {
-					background: var(--accent-hover);
-				}
-
-				.grid {
-					display: grid;
-					grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-					gap: 16px;
-					max-width: 1100px;
-				}
-
-				.card {
-					background: var(--surface);
-					border: 1px solid var(--border);
-					border-radius: var(--radius-lg);
-					box-shadow: var(--shadow-sm);
-					padding: 20px;
-					cursor: pointer;
-					transition: box-shadow 150ms ease;
-					display: flex;
-					flex-direction: column;
-					gap: 8px;
-				}
-
-				.card:hover {
-					box-shadow: var(--shadow-md);
-				}
-
-				.cardTop {
-					display: flex;
-					align-items: center;
-					justify-content: space-between;
-					gap: 8px;
-				}
-
-				.cardName {
-					font-family: var(--font-ui);
-					font-size: 15px;
-					font-weight: 600;
-					color: var(--text);
-				}
-
-				.chip {
-					font-family: var(--font-mono);
-					font-size: 11px;
-					letter-spacing: 0.05em;
-					padding: 3px 8px;
-					border-radius: 4px;
-					text-transform: lowercase;
-					white-space: nowrap;
-				}
-
-				.chip--active {
-					background: #E8F5E9;
-					color: #2E7D32;
-				}
-
-				.chip--inactive {
-					background: #F5F5F5;
-					color: var(--muted);
-				}
-
-				.chip--archived {
-					background: #F5F5F5;
-					color: var(--muted);
-				}
-
-				.cardLead {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: var(--muted);
-				}
-
-				.state {
-					font-family: var(--font-ui);
-					font-size: 14px;
-					color: var(--muted);
-				}
-
-				.stateError {
-					font-family: var(--font-ui);
-					font-size: 14px;
-					color: #D94F4F;
-				}
-			`}</style>
 		</main>
 	);
 }
