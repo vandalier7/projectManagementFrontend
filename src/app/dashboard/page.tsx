@@ -14,7 +14,7 @@ export default function DashboardPage() {
 	useEffect(() => {
 		const token = getToken();
 		if (!token) {
-			router.replace('/login');
+			router.replace('/');
 			return;
 		}
 		setUser(getUser());
@@ -26,7 +26,7 @@ export default function DashboardPage() {
 		localStorage.removeItem('swr-cache');
 		mutate(() => true, undefined, { revalidate: false }); // clears all SWR cache keys
 		logout();
-		router.replace('/login');
+		router.replace('/');
 	};
 
 	return (

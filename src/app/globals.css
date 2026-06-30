@@ -2,20 +2,45 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg: #F2F2F2;
-  --color-surface: #FFFFFF;
-  --color-border: #E0E0E0;
-  --color-text: #1A1A1A;
-  --color-muted: #6B6B6B;
-  --color-accent: #4F6BED;
-  --color-accent-hover: #3A56D4;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-danger: #D94F4F;
 
   --radius-sm: 6px;
   --radius-lg: 12px;
-
   --font-ui: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+}
+
+:root {
+  --bg: #F2F2F2;
+  --surface: #FFFFFF;
+  --border: #E0E0E0;
+  --text: #1A1A1A;
+  --muted: #6B6B6B;
+  --accent: #49a55d;
+  --accent-hover: #437e4f;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-danger: #D94F4F;
+}
+
+html.dark {
+  --bg: #111111;
+  --surface: #1C1C1C;
+  --border: #2E2E2E;
+  --text: #F0F0F0;
+  --muted: #888888;
 }
 
 body {

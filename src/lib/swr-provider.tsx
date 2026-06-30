@@ -10,6 +10,7 @@ export function SWRProvider({ children }: { children: React.ReactNode }) {
   value={{
         provider: localStorageProvider,
         fetcher,
+        refreshInterval: 5000,
         revalidateOnFocus: true,
         revalidateOnReconnect: true,
         dedupingInterval: 2000,

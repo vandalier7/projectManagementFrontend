@@ -25,6 +25,7 @@ interface Task {
 	reviewed_at: string | null;
 	completed_date: string | null;
 	previous_task: Task | null;
+	sort_order: number;
 }
 
 interface Props {
@@ -34,6 +35,7 @@ interface Props {
 	onClose: () => void;
 	onMutate: () => void;
 	onReject: (task: Task) => void;
+	onEdit: () => void;
 }
 
 const statusChip: Record<string, string> = {
@@ -57,6 +59,7 @@ export default function TaskModal({
 	onClose,
 	onMutate,
 	onReject,
+	onEdit,
 }: Props) {
 	const [submissionLink, setSubmissionLink] = useState(task.submission_link ?? '');
 	const [submissionNotes, setSubmissionNotes] = useState(task.submission_notes ?? '');
@@ -66,13 +69,17 @@ export default function TaskModal({
 	const isAdmin = currentUser.system_role === 'admin';
 	const isLead = currentUser.id === projectLeadId;
 	const isAssignee = task.assignee?.id === currentUser.id;
-	const canEdit = isAdmin || isLead;
+	const assigneeIsLead = task.assignee?.id === projectLeadId;
+	const canEdit = (isAdmin || isLead) && !(['done', 'closed', 'submitted'].includes(task.status) && !isAdmin);
+	const canDelete = (isAdmin || isLead) && !(['done', 'closed'].includes(task.status) && !isAdmin);
 
 	const canSubmit =
 		isAssignee &&
 		task.status === 'in_progress' &&
 		task.requires_submission &&
-		!isLead;
+		!isLead &&
+		!isAdmin &&
+		!assigneeIsLead;
 
 	const canTakeback =
 		isAssignee &&
@@ -81,7 +88,7 @@ export default function TaskModal({
 	const canSelfComplete =
 		isAssignee &&
 		task.status === 'in_progress' &&
-		(!task.requires_submission || isLead);
+		(!task.requires_submission || isLead || isAdmin || assigneeIsLead);
 
 	const canReview =
 		(isAdmin || isLead) &&
@@ -223,7 +230,7 @@ export default function TaskModal({
 
 				{/* Footer */}
 				<div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2">
-					{canEdit && (
+					{canDelete && (
 						<button
 							className="text-sm font-medium text-danger bg-surface border border-danger rounded px-4 py-2 cursor-pointer transition-colors hover:bg-red-50 disabled:opacity-50 mr-auto"
 							disabled={loading}
@@ -239,6 +246,15 @@ export default function TaskModal({
 							}}
 						>
 							Delete
+						</button>
+					)}
+					{canEdit && (
+						<button
+							className="text-sm font-medium text-text bg-surface border border-border rounded px-4 py-2 cursor-pointer transition-colors hover:bg-bg disabled:opacity-50"
+							disabled={loading}
+							onClick={onEdit}
+						>
+							Edit
 						</button>
 					)}
 

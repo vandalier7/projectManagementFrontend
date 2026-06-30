@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { apiClient } from '@/lib/api';
 import type { User } from '@/lib/auth';
+import { useEffect } from 'react';
 
 interface Member {
-	id: number;
-	user: {
-		id: number;
-		full_name: string;
-	};
+    id: number;
+    user: {
+        id: number;
+        full_name: string;
+        system_role: 'admin' | 'team_member';
+    };
 }
 
 interface Props {
@@ -19,6 +21,7 @@ interface Props {
 	defaultRequiresSubmission: boolean;
 	onClose: () => void;
 	onMutate: () => void;
+	projectLeadId: number;
 }
 
 export default function TaskCreateModal({
@@ -28,6 +31,7 @@ export default function TaskCreateModal({
 	defaultRequiresSubmission,
 	onClose,
 	onMutate,
+	projectLeadId
 }: Props) {
 	const [title, setTitle] = useState('');
 	const [description, setDescription] = useState('');
@@ -37,6 +41,10 @@ export default function TaskCreateModal({
 	const [dueDate, setDueDate] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const selectedMember = members.find(m => String(m.user.id) === assignedTo);
+	const assigneeIsLead = selectedMember?.user.id === projectLeadId;
+	const assigneeIsAdmin = selectedMember?.user.system_role === 'admin';
+	const submissionFrozen = assigneeIsLead || assigneeIsAdmin;
 
 	const handleCreate = async () => {
 		setLoading(true);
@@ -63,6 +71,10 @@ export default function TaskCreateModal({
 			setLoading(false);
 		}
 	};
+
+	useEffect(() => {
+		if (submissionFrozen) setRequiresSubmission(false);
+	}, [submissionFrozen]);
 
 	return (
 		<div className="overlay" onClick={onClose}>
@@ -138,8 +150,8 @@ export default function TaskCreateModal({
 					<div className="toggleRow">
 						<span className="fieldLabel">Requires Submission</span>
 						<button
-							className={`toggle ${requiresSubmission ? 'toggle--on' : 'toggle--off'}`}
-							onClick={() => setRequiresSubmission(v => !v)}
+							className={`toggle ${requiresSubmission ? 'toggle--on' : 'toggle--off'} ${submissionFrozen ? 'opacity-40 cursor-not-allowed' : ''}`}
+							onClick={() => !submissionFrozen && setRequiresSubmission(v => !v)}
 						>
 							<span className="toggleKnob" />
 						</button>

@@ -1,14 +1,33 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import useSWR from 'swr';
+import {
+	DndContext,
+	closestCenter,
+	PointerSensor,
+	useSensor,
+	useSensors,
+	DragEndEvent,
+} from '@dnd-kit/core';
+import {
+	SortableContext,
+	verticalListSortingStrategy,
+	useSortable,
+	arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { getToken, getUser } from '@/lib/auth';
 import type { User } from '@/lib/auth';
+import { apiClient } from '@/lib/api';
+import { useHeartbeat } from '@/hooks/useHeartbeat';
 import TaskModal from '@/components/TaskModal';
 import TaskCreateModal from '@/components/TaskCreateModal';
-import AddMemberPanel from '@/components/AddMemberPanel';
 import RejectModal from '@/components/RejectModal';
+import AddMemberPanel from '@/components/AddMemberPanel';
+import { formatDueDate } from '@/lib/formatDueDate';
+import TaskEditModal from '@/components/TaskEditModal';
 
 interface Assignee {
 	id: number;
@@ -22,6 +41,7 @@ interface Task {
 	status: 'todo' | 'in_progress' | 'submitted' | 'done' | 'closed';
 	priority: string;
 	requires_submission: boolean;
+	sort_order: number;
 	due_date: string | null;
 	assignee: Assignee | null;
 	submission_link: string | null;
@@ -34,11 +54,12 @@ interface Task {
 }
 
 interface Member {
-	id: number;
-	user: {
-		id: number;
-		full_name: string;
-	};
+    id: number;
+    user: {
+        id: number;
+        full_name: string;
+        system_role: 'admin' | 'team_member';
+    };
 }
 
 interface Project {
@@ -76,6 +97,70 @@ const chipStyles: Record<string, string> = {
 	archived: 'bg-gray-100 text-muted',
 };
 
+// --- Sortable task card ---
+function SortableTaskCard({
+	task,
+	onClick,
+}: {
+	task: Task;
+	onClick: () => void;
+}) {
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+		useSortable({ id: task.id });
+
+	const style = {
+		transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+		transition,
+		opacity: isDragging ? 0.4 : 1,
+	};
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className="bg-surface border border-border rounded shadow-sm p-3 flex flex-col gap-2 cursor-pointer transition-shadow hover:shadow-md"
+			onClick={onClick}
+		>
+			<div className="flex items-start justify-between gap-2">
+				<span className="text-sm font-medium text-text leading-snug">{task.title}</span>
+				<div className="flex items-center gap-1.5">
+					{task.requires_submission && (
+						<span className="w-2 h-2 min-w-2 rounded-full bg-accent mt-1" title="Requires submission" />
+					)}
+					<span
+						className="text-muted cursor-grab active:cursor-grabbing select-none px-0.5 hover:text-text"
+						{...attributes}
+						{...listeners}
+						onClick={e => e.stopPropagation()}
+						title="Drag to reorder"
+					>
+						⠿
+					</span>
+				</div>
+			</div>
+
+			<div className="flex items-center justify-between gap-2">
+				<span className={`font-mono text-xs tracking-wide px-1.5 py-0.5 rounded lowercase ${priorityStyles[task.priority] ?? 'bg-gray-100 text-muted'}`}>
+					{task.priority}
+				</span>
+				{task.assignee && (
+					<span className="text-xs text-muted">{task.assignee.full_name}</span>
+				)}
+			</div>
+
+			{task.due_date && task.status !== 'submitted' && task.status !== 'done' && (() => {
+				const { label, urgent } = formatDueDate(task.due_date!);
+				return (
+					<span className={`font-mono text-xs ${urgent ? 'text-danger' : 'text-muted'}`}>
+						{label}
+					</span>
+				);
+			})()}
+		</div>
+	);
+}
+
+// --- Board page ---
 export default function ProjectBoardPage() {
 	const router = useRouter();
 	const params = useParams();
@@ -84,8 +169,12 @@ export default function ProjectBoardPage() {
 	const [user, setUser] = useState<User | null>(null);
 	const [hasToken, setHasToken] = useState<boolean | null>(null);
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-	const [showCreateModal, setShowCreateModal] = useState(false);
 	const [rejectTask, setRejectTask] = useState<Task | null>(null);
+	const [showCreateModal, setShowCreateModal] = useState(false);
+	const [editTask, setEditTask] = useState<Task | null>(null);
+
+	// Local task order state — mirrors server but allows optimistic reordering.
+	const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
 	useEffect(() => {
 		if (!getToken()) {
@@ -101,24 +190,61 @@ export default function ProjectBoardPage() {
 		hasToken && user ? `/projects/${projectId}?user=${user.id}` : null
 	);
 
-	// Used by AddMemberPanel to know which users are available to add.
-	// Same access rule as everywhere else — admin sees all, members would
-	// only see their own scoped list (not relevant for this dropdown's
-	// purposes, since only admin/lead can add members anyway).
-	const { data: allUsers } = useSWR<AllUser[]>(hasToken ? '/users' : null);
+	// Sync local tasks from server data.
+	useEffect(() => {
+		if (project?.tasks) {
+			setLocalTasks([...project.tasks].sort((a, b) => a.sort_order - b.sort_order));
+		}
+	}, [project?.tasks]);
+
+	const handleMutate = useCallback(() => mutate(), [mutate]);
+	const { syncStatus } = useHeartbeat(project?.id ?? null, handleMutate);
 
 	const isAdmin = user?.system_role === 'admin';
 	const isLead = user?.id === project?.lead_id;
 	const canCreateTask = isAdmin || isLead;
 	const canManageMembers = isAdmin || isLead;
 
+	const { data: allUsers } = useSWR<AllUser[]>(hasToken ? '/users' : null);
+
 	const tasksByStatus = (status: Task['status']) =>
-		(project?.tasks ?? []).filter(t => t.status === status);
+		localTasks.filter(t => t.status === status);
 
 	const defaultRequiresSubmission =
-    project?.task_default_submission_mode === 'no_require' ? false : true;
+		project?.task_default_submission_mode === 'no_require' ? false : true;
 
-	// --- ADD HERE ---
+	const sensors = useSensors(useSensor(PointerSensor, {
+		activationConstraint: { distance: 5 },
+	}));
+
+	const handleDragEnd = async (event: DragEndEvent, status: Task['status']) => {
+		const { active, over } = event;
+		if (!over || active.id === over.id) return;
+
+		const columnTasks = tasksByStatus(status);
+		const oldIndex = columnTasks.findIndex(t => t.id === active.id);
+		const newIndex = columnTasks.findIndex(t => t.id === over.id);
+
+		const reordered = arrayMove(columnTasks, oldIndex, newIndex);
+
+		// Optimistically update local state.
+		setLocalTasks(prev => {
+			const others = prev.filter(t => t.status !== status);
+			return [...others, ...reordered];
+		});
+
+		// Persist to server.
+		try {
+			await apiClient('/tasks/reorder', {
+				method: 'POST',
+				body: JSON.stringify({ ordered_ids: reordered.map(t => t.id) }),
+			});
+		} catch {
+			// On failure, revert by resyncing from server.
+			mutate();
+		}
+	};
+
 	if (error?.message === 'You do not have access to this project.') {
 		return (
 			<main className="min-h-screen bg-bg flex items-center justify-center">
@@ -136,7 +262,6 @@ export default function ProjectBoardPage() {
 		);
 	}
 
-	// --- ADD HERE ---
 	if (error && error.message !== 'You do not have access to this project.') {
 		return (
 			<main className="min-h-screen bg-bg flex items-center justify-center">
@@ -166,20 +291,24 @@ export default function ProjectBoardPage() {
 		<main className="min-h-screen bg-bg flex">
 			{/* Sidebar */}
 			<aside className="w-60 min-w-60 bg-surface border-r border-border px-6 py-8 flex flex-col gap-4">
-				 <button
+				<button
 					className="text-sm text-muted cursor-pointer hover:text-text transition-colors bg-transparent border-none p-0 self-start"
 					onClick={() => router.push('/projects')}
 				>
 					← Projects
 				</button>
+
 				{isLoading && <p className="text-sm text-muted">Loading...</p>}
-				{error && <p className="text-sm text-danger">{error.message}</p>}
 				{project && (
 					<>
 						<h1 className="text-lg font-semibold text-text m-0">{project.name}</h1>
 
 						<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded lowercase self-start ${chipStyles[project.status] ?? 'bg-gray-100 text-muted'}`}>
 							{project.status}
+						</span>
+
+						<span className={`text-xs font-mono ${syncStatus === 'syncing' ? 'text-accent' : 'text-muted'}`}>
+							{syncStatus === 'syncing' ? 'Syncing...' : 'Up to date'}
 						</span>
 
 						<div className="flex flex-col gap-0.5">
@@ -203,9 +332,7 @@ export default function ProjectBoardPage() {
 									<span className="text-sm text-muted">No members yet.</span>
 								)}
 								{project.members.map(m => (
-									<span key={m.id} className="text-sm text-text">
-										{m.user.full_name}
-									</span>
+									<span key={m.id} className="text-sm text-text">{m.user.full_name}</span>
 								))}
 							</div>
 						)}
@@ -224,49 +351,72 @@ export default function ProjectBoardPage() {
 
 			{/* Board */}
 			<div className="flex-1 flex gap-4 px-6 py-8 overflow-x-auto items-start">
-				{COLUMNS.map(col => (
+			{COLUMNS.map(col => {
+				const colTasks = tasksByStatus(col.key);
+				return (
 					<div key={col.key} className="min-w-60 w-60 flex flex-col gap-2">
 						<div className="flex items-center justify-between px-1 pb-2 border-b border-border">
 							<span className="text-sm font-semibold text-text">{col.label}</span>
-							<span className="font-mono text-xs text-muted">{tasksByStatus(col.key).length}</span>
+							<span className="font-mono text-xs text-muted">{colTasks.length}</span>
 						</div>
 
-						<div className="flex flex-col gap-2">
-							{tasksByStatus(col.key).map(task => (
-								<div
-									key={task.id}
-									className="bg-surface border border-border rounded shadow-sm p-3 flex flex-col gap-2 cursor-pointer transition-shadow hover:shadow-md"
-									onClick={() => setSelectedTask(task)}
+						{col.key === 'done' ? (
+							<div className="flex flex-col gap-2">
+								{colTasks.map(task => (
+									<div
+										key={task.id}
+										className="bg-surface border border-border rounded shadow-sm p-3 flex flex-col gap-2 cursor-pointer transition-shadow hover:shadow-md"
+										onClick={() => setSelectedTask(task)}
+									>
+										<div className="flex items-start justify-between gap-2">
+											<span className="text-sm font-medium text-text leading-snug">{task.title}</span>
+											{task.requires_submission && (
+												<span className="w-2 h-2 min-w-2 rounded-full bg-accent mt-1" title="Requires submission" />
+											)}
+										</div>
+										<div className="flex items-center justify-between gap-2">
+											<span className={`font-mono text-xs tracking-wide px-1.5 py-0.5 rounded lowercase ${priorityStyles[task.priority] ?? 'bg-gray-100 text-muted'}`}>
+												{task.priority}
+											</span>
+											{task.assignee && (
+												<span className="text-xs text-muted">{task.assignee.full_name}</span>
+											)}
+										</div>
+									</div>
+								))}
+								{colTasks.length === 0 && (
+									<p className="text-xs text-muted px-1 py-2 m-0">No tasks</p>
+								)}
+							</div>
+						) : (
+							<DndContext
+								sensors={sensors}
+								collisionDetection={closestCenter}
+								onDragEnd={(e) => handleDragEnd(e, col.key)}
+							>
+								<SortableContext
+									items={colTasks.map(t => t.id)}
+									strategy={verticalListSortingStrategy}
 								>
-									<div className="flex items-start justify-between gap-2">
-										<span className="text-sm font-medium text-text leading-snug">{task.title}</span>
-										{task.requires_submission && (
-											<span className="w-2 h-2 min-w-2 rounded-full bg-accent mt-1" title="Requires submission" />
+									<div className="flex flex-col gap-2">
+										{colTasks.map(task => (
+											<SortableTaskCard
+												key={task.id}
+												task={task}
+												onClick={() => setSelectedTask(task)}
+											/>
+										))}
+										{colTasks.length === 0 && (
+											<p className="text-xs text-muted px-1 py-2 m-0">No tasks</p>
 										)}
 									</div>
-
-									<div className="flex items-center justify-between gap-2">
-										<span className={`font-mono text-xs tracking-wide px-1.5 py-0.5 rounded lowercase ${priorityStyles[task.priority] ?? 'bg-gray-100 text-muted'}`}>
-											{task.priority}
-										</span>
-										{task.assignee && (
-											<span className="text-xs text-muted">{task.assignee.full_name}</span>
-										)}
-									</div>
-
-									{task.due_date && (
-										<span className="font-mono text-xs text-muted">{task.due_date}</span>
-									)}
-								</div>
-							))}
-
-							{tasksByStatus(col.key).length === 0 && (
-								<p className="text-xs text-muted px-1 py-2 m-0">No tasks</p>
-							)}
-						</div>
+								</SortableContext>
+							</DndContext>
+						)}
 					</div>
-				))}
-			</div>
+				);
+			})}
+		</div>
 
 			{selectedTask && user && project && (
 				<TaskModal
@@ -279,6 +429,20 @@ export default function ProjectBoardPage() {
 						setSelectedTask(null);
 						setRejectTask(task);
 					}}
+					onEdit={() => {
+						setSelectedTask(null);
+						setEditTask(selectedTask);
+					}}
+				/>
+			)}
+
+			{editTask && user && project && (
+				<TaskEditModal
+					task={editTask}
+					members={project.members}
+					currentUser={user}
+					onClose={() => setEditTask(null)}
+					onMutate={() => mutate()}
 				/>
 			)}
 
@@ -300,6 +464,7 @@ export default function ProjectBoardPage() {
 					defaultRequiresSubmission={defaultRequiresSubmission}
 					onClose={() => setShowCreateModal(false)}
 					onMutate={() => mutate()}
+					projectLeadId={project.lead_id}
 				/>
 			)}
 		</main>
