@@ -17,6 +17,13 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+.rte-display { font-size: 13px; color: var(--text); line-height: 1.6; }
+.rte-display p { margin: 0 0 4px; }
+.rte-display p:last-child { margin-bottom: 0; }
+.rte-display strong { font-weight: 600; }
+.rte-display em { font-style: italic; }
+.rte-display u { text-decoration: underline; }
+
 :root {
   --bg: #F2F2F2;
   --surface: #FFFFFF;

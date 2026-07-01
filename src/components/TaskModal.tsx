@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { apiClient } from '@/lib/api';
 import type { User } from '@/lib/auth';
+import RichTextEditor from '@/components/RichTextEditor';
+import RichTextDisplay from '@/components/RichTextDisplay';
+import { Check, X } from 'lucide-react';
 
 interface Assignee {
 	id: number;
@@ -51,6 +54,29 @@ const priorityChip: Record<string, string> = {
 	medium: 'bg-yellow-50 text-yellow-800',
 	low: 'bg-gray-100 text-muted',
 };
+
+const statusLabel: Record<string, string> = {
+	todo: 'To Do',
+	in_progress: 'In Progress',
+	submitted: 'Submitted',
+	done: 'Done',
+	closed: 'Closed',
+};
+
+const priorityLabel: Record<string, string> = {
+	high: 'High',
+	medium: 'Medium',
+	low: 'Low',
+};
+
+function formatDueDate(dateStr: string): string {
+	const date = new Date(dateStr);
+	return date.toLocaleDateString('en-US', {
+		month: 'long',
+		day: 'numeric',
+		year: 'numeric',
+	});
+}
 
 export default function TaskModal({
 	task,
@@ -124,13 +150,22 @@ export default function TaskModal({
 
 				{/* Header */}
 				<div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-border gap-3">
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2 min-w-0">
 						<h2 className="text-base font-semibold text-text m-0">{task.title}</h2>
-						{task.requires_submission && (
-							<span className="w-2 h-2 min-w-2 rounded-full bg-accent" title="Requires submission" />
-						)}
+						<span
+							className={`inline-flex shrink-0 items-center gap-1 text-[10px] font-medium tracking-wide px-1.5 py-0.5 rounded-full border cursor-default select-none whitespace-nowrap ${
+								task.requires_submission
+									? 'bg-green-50 text-green-700 border-green-200'
+									: 'bg-gray-100 text-muted border-gray-200'
+							}`}
+						>
+							{task.requires_submission
+								? <><Check size={10} strokeWidth={2.5} /> Submission Required</>
+								: <><X size={10} strokeWidth={2.5} /> Submission Not Required</>
+							}
+						</span>
 					</div>
-					<button className="text-sm text-muted bg-transparent border-none cursor-pointer hover:text-text p-0 leading-none" onClick={onClose}>✕</button>
+					<button className="text-sm text-muted bg-transparent border-none cursor-pointer hover:text-text p-0 leading-none shrink-0" onClick={onClose}>✕</button>
 				</div>
 
 				{/* Body */}
@@ -139,14 +174,14 @@ export default function TaskModal({
 					<div className="grid grid-cols-2 gap-3">
 						<div className="flex flex-col gap-1">
 							<span className="text-xs text-muted uppercase tracking-wide">Status</span>
-							<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded lowercase self-start ${statusChip[task.status] ?? 'bg-gray-100 text-muted'}`}>
-								{task.status}
+							<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded self-start ${statusChip[task.status] ?? 'bg-gray-100 text-muted'}`}>
+								{statusLabel[task.status] ?? task.status}
 							</span>
 						</div>
 						<div className="flex flex-col gap-1">
 							<span className="text-xs text-muted uppercase tracking-wide">Priority</span>
-							<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded lowercase self-start ${priorityChip[task.priority] ?? 'bg-gray-100 text-muted'}`}>
-								{task.priority}
+							<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded self-start ${priorityChip[task.priority] ?? 'bg-gray-100 text-muted'}`}>
+								{priorityLabel[task.priority] ?? task.priority}
 							</span>
 						</div>
 						<div className="flex flex-col gap-1">
@@ -155,7 +190,9 @@ export default function TaskModal({
 						</div>
 						<div className="flex flex-col gap-1">
 							<span className="text-xs text-muted uppercase tracking-wide">Due</span>
-							<span className="text-sm text-text">{task.due_date ?? '—'}</span>
+							<span className="text-sm text-text">
+								{task.due_date ? formatDueDate(task.due_date) : '—'}
+							</span>
 						</div>
 					</div>
 
@@ -163,7 +200,7 @@ export default function TaskModal({
 					{task.description && (
 						<div className="flex flex-col gap-1.5">
 							<span className="text-xs text-muted uppercase tracking-wide">Description</span>
-							<p className="text-sm text-text m-0 leading-relaxed">{task.description}</p>
+							<RichTextDisplay html={task.description} />
 						</div>
 					)}
 
@@ -185,11 +222,11 @@ export default function TaskModal({
 								value={submissionLink}
 								onChange={e => setSubmissionLink(e.target.value)}
 							/>
-							<textarea
-								className="text-sm text-text bg-bg border border-border rounded px-3 py-2 outline-none focus:border-accent transition-colors resize-none min-h-20"
-								placeholder="Submission notes (optional)"
+							<RichTextEditor
 								value={submissionNotes}
-								onChange={e => setSubmissionNotes(e.target.value)}
+								onChange={setSubmissionNotes}
+								placeholder="Submission notes (optional)"
+								minHeight={80}
 							/>
 						</div>
 					)}
@@ -202,7 +239,7 @@ export default function TaskModal({
 								{task.submission_link}
 							</a>
 							{task.submission_notes && (
-								<p className="text-sm text-text m-0 leading-relaxed">{task.submission_notes}</p>
+								<RichTextDisplay html={task.submission_notes} />
 							)}
 						</div>
 					)}
@@ -291,7 +328,7 @@ export default function TaskModal({
 						<button
 							className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
 							disabled={loading || !submissionLink}
-							onClick={() => patch({ status: 'submitted', submission_link: submissionLink, submission_notes: submissionNotes })}
+							onClick={() => patch({ status: 'submitted', submission_link: submissionLink, submission_notes: submissionNotes || null })}
 						>
 							Submit
 						</button>
@@ -307,7 +344,7 @@ export default function TaskModal({
 						</button>
 					)}
 
-					{isAssignee && task.status === 'todo' && (
+					{(isAssignee || !task.assignee) && task.status === 'todo' && (
 						<button
 							className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover disabled:opacity-50"
 							disabled={loading}

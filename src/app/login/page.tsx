@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { login, getToken } from '@/lib/auth';
@@ -37,11 +38,19 @@ export default function LoginPage() {
 	};
 
 	return (
-		<main className="min-h-screen bg-bg flex items-center justify-center px-4 py-6">
+		<main className="flex min-h-screen items-center justify-center bg-bg px-4 py-6">
 			<div className="flex w-full max-w-md flex-col items-center">
 				<div className="mb-6 flex flex-col items-center gap-2">
-					<span className="text-6xl">⬡</span>
-					<p className="m-0 text-[10px] font-mono uppercase tracking-[0.3em] text-center text-muted">
+					<Image
+						src="/logo.png"
+						alt="Project Dashboard"
+						width={72}
+						height={72}
+						className="h-[72px] w-[72px] object-contain"
+						priority
+					/>
+
+					<p className="m-0 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-muted">
 						Project Management System
 					</p>
 				</div>
@@ -117,3 +126,4 @@ export default function LoginPage() {
 		</main>
 	);
 }
+

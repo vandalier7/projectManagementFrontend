@@ -4,14 +4,16 @@ import { useState } from 'react';
 import { apiClient } from '@/lib/api';
 import type { User } from '@/lib/auth';
 import { useEffect } from 'react';
+import RichTextEditor from '@/components/RichTextEditor';
+import { Check, X } from 'lucide-react';
 
 interface Member {
-    id: number;
-    user: {
-        id: number;
-        full_name: string;
-        system_role: 'admin' | 'team_member';
-    };
+	id: number;
+	user: {
+		id: number;
+		full_name: string;
+		system_role: 'admin' | 'team_member';
+	};
 }
 
 interface Props {
@@ -31,7 +33,7 @@ export default function TaskCreateModal({
 	defaultRequiresSubmission,
 	onClose,
 	onMutate,
-	projectLeadId
+	projectLeadId,
 }: Props) {
 	const [title, setTitle] = useState('');
 	const [description, setDescription] = useState('');
@@ -41,10 +43,15 @@ export default function TaskCreateModal({
 	const [dueDate, setDueDate] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+
 	const selectedMember = members.find(m => String(m.user.id) === assignedTo);
 	const assigneeIsLead = selectedMember?.user.id === projectLeadId;
 	const assigneeIsAdmin = selectedMember?.user.system_role === 'admin';
 	const submissionFrozen = assigneeIsLead || assigneeIsAdmin;
+
+	useEffect(() => {
+		if (submissionFrozen) setRequiresSubmission(false);
+	}, [submissionFrozen]);
 
 	const handleCreate = async () => {
 		setLoading(true);
@@ -72,15 +79,23 @@ export default function TaskCreateModal({
 		}
 	};
 
-	useEffect(() => {
-		if (submissionFrozen) setRequiresSubmission(false);
-	}, [submissionFrozen]);
-
 	return (
-		<div className="overlay" onClick={onClose}>
+		<div className="overlay">
 			<div className="modal" onClick={e => e.stopPropagation()}>
 				<div className="modalHeader">
-					<h2 className="modalTitle">New Task</h2>
+					<div className="headerLeft">
+						<h2 className="modalTitle">New Task</h2>
+						<button
+							className={`submissionToggle ${requiresSubmission ? 'submissionToggle--on' : 'submissionToggle--off'} ${submissionFrozen ? 'submissionToggle--frozen' : ''}`}
+							onClick={() => !submissionFrozen && setRequiresSubmission(v => !v)}
+							title={submissionFrozen ? 'Submission not required for leads and admins' : 'Toggle submission requirement'}
+						>
+							{requiresSubmission
+								? <><Check size={10} strokeWidth={2.5} /> Require Submission</>
+								: <><X size={10} strokeWidth={2.5} /> Require Submission</>
+							}
+						</button>
+					</div>
 					<button className="closeBtn" onClick={onClose}>✕</button>
 				</div>
 
@@ -98,11 +113,11 @@ export default function TaskCreateModal({
 
 					<div className="fieldGroup">
 						<label className="fieldLabel">Description</label>
-						<textarea
-							className="textarea"
-							placeholder="Optional description"
+						<RichTextEditor
 							value={description}
-							onChange={e => setDescription(e.target.value)}
+							onChange={setDescription}
+							placeholder="Optional description"
+							minHeight={100}
 						/>
 					</div>
 
@@ -145,16 +160,6 @@ export default function TaskCreateModal({
 								onChange={e => setDueDate(e.target.value)}
 							/>
 						</div>
-					</div>
-
-					<div className="toggleRow">
-						<span className="fieldLabel">Requires Submission</span>
-						<button
-							className={`toggle ${requiresSubmission ? 'toggle--on' : 'toggle--off'} ${submissionFrozen ? 'opacity-40 cursor-not-allowed' : ''}`}
-							onClick={() => !submissionFrozen && setRequiresSubmission(v => !v)}
-						>
-							<span className="toggleKnob" />
-						</button>
 					</div>
 
 					{error && <p className="errorMsg">{error}</p>}
@@ -204,6 +209,14 @@ export default function TaskCreateModal({
 					justify-content: space-between;
 					padding: 24px 24px 16px;
 					border-bottom: 1px solid var(--border);
+					gap: 12px;
+				}
+
+				.headerLeft {
+					display: flex;
+					align-items: center;
+					gap: 10px;
+					min-width: 0;
 				}
 
 				.modalTitle {
@@ -212,6 +225,41 @@ export default function TaskCreateModal({
 					font-weight: 600;
 					color: var(--text);
 					margin: 0;
+					white-space: nowrap;
+				}
+
+				.submissionToggle {
+					display: inline-flex;
+					align-items: center;
+					gap: 4px;
+					font-family: var(--font-ui);
+					font-size: 10px;
+					font-weight: 500;
+					letter-spacing: 0.04em;
+					padding: 2px 7px;
+					border-radius: 999px;
+					border: 1px solid transparent;
+					cursor: pointer;
+					transition: background 150ms ease, color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+					white-space: nowrap;
+					line-height: 1.6;
+				}
+
+				.submissionToggle--on {
+					background: #dcfce7;
+					color: #166534;
+					border-color: #86efac;
+				}
+
+				.submissionToggle--off {
+					background: #f3f4f6;
+					color: #6b7280;
+					border-color: #d1d5db;
+				}
+
+				.submissionToggle--frozen {
+					cursor: not-allowed;
+					opacity: 0.45;
 				}
 
 				.closeBtn {
@@ -222,6 +270,7 @@ export default function TaskCreateModal({
 					cursor: pointer;
 					padding: 0;
 					line-height: 1;
+					flex-shrink: 0;
 				}
 
 				.closeBtn:hover {
@@ -268,24 +317,6 @@ export default function TaskCreateModal({
 					border-color: var(--accent);
 				}
 
-				.textarea {
-					font-family: var(--font-ui);
-					font-size: 13px;
-					color: var(--text);
-					background: var(--bg);
-					border: 1px solid var(--border);
-					border-radius: var(--radius);
-					padding: 8px 10px;
-					outline: none;
-					resize: vertical;
-					min-height: 80px;
-					transition: border-color 150ms ease;
-				}
-
-				.textarea:focus {
-					border-color: var(--accent);
-				}
-
 				.select {
 					font-family: var(--font-ui);
 					font-size: 13px;
@@ -307,53 +338,10 @@ export default function TaskCreateModal({
 					gap: 12px;
 				}
 
-				.toggleRow {
-					display: flex;
-					align-items: center;
-					justify-content: space-between;
-				}
-
-				.toggle {
-					width: 36px;
-					height: 20px;
-					border-radius: 10px;
-					border: none;
-					cursor: pointer;
-					position: relative;
-					transition: background 150ms ease;
-					padding: 0;
-				}
-
-				.toggle--on {
-					background: var(--accent);
-				}
-
-				.toggle--off {
-					background: var(--border);
-				}
-
-				.toggleKnob {
-					position: absolute;
-					top: 3px;
-					width: 14px;
-					height: 14px;
-					border-radius: 50%;
-					background: #FFFFFF;
-					transition: left 150ms ease;
-				}
-
-				.toggle--on .toggleKnob {
-					left: 19px;
-				}
-
-				.toggle--off .toggleKnob {
-					left: 3px;
-				}
-
 				.errorMsg {
 					font-family: var(--font-ui);
 					font-size: 13px;
-					color: #D94F4F;
+					color: #d94f4f;
 					margin: 0;
 				}
 
@@ -383,7 +371,7 @@ export default function TaskCreateModal({
 
 				.btn.primary {
 					background: var(--accent);
-					color: #FFFFFF;
+					color: #ffffff;
 				}
 
 				.btn.primary:hover:not(:disabled) {
