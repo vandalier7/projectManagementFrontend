@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
 
 export default function LandingPage() {
 	const router = useRouter();
@@ -14,11 +14,26 @@ export default function LandingPage() {
 			setFading(true);
 
 			setTimeout(() => {
-				if (getToken()) {
-					router.replace('/dashboard');
-				} else {
+				const token = getToken();
+
+				if (!token) {
 					router.replace('/login');
+					return;
 				}
+
+				const user = getUser();
+
+				if (user && !user.profile_completed) {
+					router.replace('/complete-profile');
+					return;
+				}
+
+				if (user && user.must_change_password) {
+					router.replace('/change-password');
+					return;
+				}
+
+				router.replace('/dashboard');
 			}, 100);
 		}, 500);
 
@@ -48,4 +63,3 @@ export default function LandingPage() {
 		</main>
 	);
 }
-

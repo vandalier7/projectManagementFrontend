@@ -2,28 +2,38 @@
 
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
-import { ArrowLeft, ListTodo, Users, Settings, BadgeInfo } from 'lucide-react';
+import { ArrowLeft, ListTodo, User, Settings, Timeline, BadgeInfo, LayoutDashboard } from 'lucide-react';
+import { useBoardState } from './AppBarActionsContext';
 
 export default function ProjectSidebar() {
 	const pathname = usePathname();
 	const params = useParams<{ id: string }>();
 	const projectId = params.id;
 
+	const boardState = useBoardState();
+
+	const disabled = boardState !== 'ready';
+
 	const navigation = [
         {
-			label: 'Project Details',
-			href: `/projects/${projectId}/details`,
-			icon: BadgeInfo,
+			label: 'Dashboard',
+			href: `/projects/${projectId}/dashboard`,
+			icon: LayoutDashboard,
 		},
 		{
-			label: 'Board',
+			label: 'Tasks',
 			href: `/projects/${projectId}`,
 			icon: ListTodo,
 		},
 		{
+			label: 'Timeline',
+			href: `/projects/${projectId}/timeline`,
+			icon: Timeline,
+		},
+		{
 			label: 'Members',
 			href: `/projects/${projectId}/members`,
-			icon: Users,
+			icon: User,
 		},
 		{
 			label: 'Settings',
@@ -53,11 +63,19 @@ export default function ProjectSidebar() {
 						return (
 							<Link
 								key={item.href}
-								href={item.href}
+								href={disabled ? '#' : item.href}
+								onClick={e => {
+									if (disabled) {
+										e.preventDefault();
+									}
+								}}
+								aria-disabled={disabled}
 								className={`flex w-full items-center justify-start gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors ${
-									active
+									active && !disabled
 										? 'bg-accent text-white'
-										: 'text-text hover:bg-bg'
+										: disabled
+											? 'cursor-not-allowed text-muted opacity-50'
+											: 'text-text hover:bg-bg'
 								}`}
 							>
 								<Icon className="h-5 w-5 shrink-0" />

@@ -6,10 +6,11 @@ import useSWR from 'swr';
 import { getUser } from '@/lib/auth';
 import type { User } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
-import { useSetBoardTitle } from '@/components/layout/AppBarActionsContext';
+import { useSetBoardState, useSetBoardTitle } from '@/components/layout/AppBarActionsContext';
 import { UserMinus, UserPlus } from 'lucide-react';
 import AddProjectMemberModal from '@/components/AddProjectMemberModal';
-import { useSetAppBarActions } from '@/components/layout/AppBarActionsContext';
+import { useSetAppBarActions, useSetBoardLogo, useBoardState } from '@/components/layout/AppBarActionsContext';
+import ProjectGuard from '@/components/feedback/ProjectGuard';
 
 interface ProjectMember {
 	id: number;
@@ -38,6 +39,7 @@ interface Project {
 	lead_id: number;
 	members: ProjectMember[];
 	tasks: Task[];
+	logo_url: string | null;
 }
 
 interface UserRecord {
@@ -60,8 +62,9 @@ function getInitials(name: string): string {
 		.slice(0, 2);
 }
 
-function MemberAvatar({ member }: { member: ProjectMember }) {
+function MemberAvatar({ member, large = false }: { member: ProjectMember; large?: boolean }) {
 	const [imgError, setImgError] = useState(false);
+	const size = large ? 'h-14 w-14 text-base' : 'h-10 w-10 text-sm';
 
 	if (member.user.avatar_url && !imgError) {
 		return (
@@ -69,26 +72,37 @@ function MemberAvatar({ member }: { member: ProjectMember }) {
 				src={member.user.avatar_url}
 				alt={member.user.full_name}
 				onError={() => setImgError(true)}
-				className="h-10 w-10 rounded-full object-cover shrink-0"
+				className={size + ' rounded-full object-cover shrink-0'}
 			/>
 		);
 	}
 
 	return (
-		<div className="h-10 w-10 rounded-full bg-accent/10 text-accent flex items-center justify-center text-sm font-semibold shrink-0">
+		<div className={size + ' rounded-full bg-accent/10 text-accent flex items-center justify-center font-semibold shrink-0'}>
 			{getInitials(member.user.full_name)}
 		</div>
 	);
 }
 
-function StatPill({ label, value, color }: { label: string; value: number; color: string }) {
+// Numbers only. Column names are shown once in the header row instead of per-card.
+function StatPill({ value, color }: { value: number; color: string }) {
 	return (
-		<div className="flex flex-col items-center gap-0.5">
-			<span className={`text-base font-semibold ${color}`}>{value}</span>
-			<span className="text-xs text-muted">{label}</span>
+		<div className={'flex items-center justify-center ' + STAT_COL_WIDTH}>
+			<span className={'text-base font-semibold ' + color}>{value}</span>
 		</div>
 	);
 }
+
+const STAT_COL_WIDTH = 'w-16';
+
+const STAT_COLUMNS = [
+	{ key: 'todo', label: 'To Do' },
+	{ key: 'inProgress', label: 'In Progress' },
+	{ key: 'submitted', label: 'Submitted' },
+	{ key: 'done', label: 'Done' },
+	{ key: 'overdue', label: 'Overdue' },
+	{ key: 'rate', label: 'Completion' },
+];
 
 export default function ProjectMembersPage() {
 	const params = useParams();
@@ -96,76 +110,92 @@ export default function ProjectMembersPage() {
 
 	const [currentUser, setCurrentUser] = useState<User | null>(null);
 	const [removingId, setRemovingId] = useState<number | null>(null);
-
-    const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+	const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
 	useEffect(() => {
 		setCurrentUser(getUser());
 	}, []);
 
-	const { data: project, mutate } = useSWR<Project>(
+	const { data: project, mutate, error, isLoading } = useSWR<Project>(
 		currentUser ? `/projects/${projectId}?user=${currentUser.id}` : null
 	);
 
-    const { data: users } = useSWR<UserRecord[]>(
-        currentUser ? '/users' : null
-    );
+	const { data: users } = useSWR<UserRecord[]>(
+		currentUser ? '/users' : null
+	);
 
-	useSetBoardTitle(project?.name ?? null);
+	useSetBoardTitle(project?.name ? `${project.name} / Members` : null);
+	useSetBoardLogo(project?.logo_url ?? null);
 
 	const isAdmin = currentUser?.system_role === 'admin';
 	const isLead = currentUser?.id === project?.lead_id;
 	const canManage = isAdmin || isLead;
 
-    useSetAppBarActions(
-        canManage ? (
-            <button
-                onClick={() => setShowAddMemberModal(true)}
-                className="flex items-center gap-2 rounded px-4 bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
-            >
-                {/* <UserPlus className="h-4 w-4" /> */}
-                Add Member
-            </button>
-        ) : null
-    );
+	const boardActions =
+		project && canManage ? (
+			<button
+				onClick={() => setShowAddMemberModal(true)}
+				className="flex items-center gap-2 rounded bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+			>
+				Add Member
+			</button>
+		) : null;
 
-	const sortedMembers = useMemo(() => {
-		if (!project?.members) return [];
-		return [...project.members].sort((a, b) => {
-			if (a.user.id === project.lead_id) return -1;
-			if (b.user.id === project.lead_id) return 1;
-			return 0;
-		});
-	}, [project?.members, project?.lead_id]);
+	useSetAppBarActions(boardActions);
 
-	// Per-member task stats — lead excluded
+	const leadMember = useMemo(() => {
+		if (!project) return null;
+		return project.members.find(m => m.user.id === project.lead_id) ?? null;
+	}, [project]);
+
+	const nonLeadMembers = useMemo(() => {
+		if (!project) return [];
+		return project.members.filter(m => m.user.id !== project.lead_id);
+	}, [project]);
+
+	// Per-member task stats. Lead excluded.
 	const statsByUser = useMemo(() => {
-		if (!project?.tasks) return {};
+	const map: Record<number, { todo: number; inProgress: number; submitted: number; done: number; overdue: number }> = {};
+	if (!project?.tasks) return map;
 
-		const map: Record<number, { todo: number; inProgress: number; submitted: number; done: number; overdue: number }> = {};
+	for (const task of project.tasks) {
+		if (!task.assignee) continue;
+		if (task.assignee.id === project.lead_id) continue;
 
-		for (const task of project.tasks) {
-			if (!task.assignee) continue;
-			if (task.assignee.id === project.lead_id) continue;
+		// 🚫 ignore closed tasks entirely
+		if (task.status === 'closed') continue;
 
-			const uid = task.assignee.id;
-			if (!map[uid]) map[uid] = { todo: 0, inProgress: 0, submitted: 0, done: 0, overdue: 0 };
+		const uid = task.assignee.id;
 
-			if (task.status === 'todo') map[uid].todo++;
-			else if (task.status === 'in_progress') map[uid].inProgress++;
-			else if (task.status === 'submitted') map[uid].submitted++;
-			else if (task.status === 'done') map[uid].done++;
-
-			const isOverdue =
-				task.due_date &&
-				new Date(task.due_date) < new Date() &&
-				!['done', 'closed'].includes(task.status);
-
-			if (isOverdue) map[uid].overdue++;
+		if (!map[uid]) {
+			map[uid] = { todo: 0, inProgress: 0, submitted: 0, done: 0, overdue: 0 };
 		}
 
-		return map;
-	}, [project?.tasks, project?.lead_id]);
+		if (task.status === 'todo') map[uid].todo++;
+		else if (task.status === 'in_progress') map[uid].inProgress++;
+		else if (task.status === 'submitted') map[uid].submitted++;
+		else if (task.status === 'done') map[uid].done++;
+
+        const NON_OVERDUE_STATUSES = new Set(['done', 'submitted', 'closed']);
+
+        const isOverdue =
+            task.due_date &&
+            (() => {
+                const due = new Date(task.due_date);
+                const now = new Date();
+
+                // normalize both to midnight (local time)
+                due.setHours(0, 0, 0, 0);
+                now.setHours(0, 0, 0, 0);
+
+                return due < now && !NON_OVERDUE_STATUSES.has(task.status);
+            })();
+
+		if (isOverdue) map[uid].overdue++;
+	}
+
+	return map;
+}, [project?.tasks, project?.lead_id]);
 
 	const handleRemove = async (userId: number) => {
 		if (!confirm('Remove this member from the project?')) return;
@@ -185,107 +215,154 @@ export default function ProjectMembersPage() {
 	};
 
 	if (!project) {
-		return <p className="text-sm text-muted">Loading...</p>;
+		return (
+			<ProjectGuard isLoading={isLoading} error={error}>
+				<></>
+			</ProjectGuard>
+		);
 	}
 
 	return (
-		<div className="flex flex-col gap-3">
-			{sortedMembers.map(member => {
-				const isLead = member.user.id === project.lead_id;
-				const stats = statsByUser[member.user.id] ?? { todo: 0, inProgress: 0, submitted: 0, done: 0, overdue: 0 };
-				const total = stats.todo + stats.inProgress + stats.submitted + stats.done;
-				const completionRate = total > 0 ? Math.round((stats.done / total) * 100) : 0;
+		<ProjectGuard isLoading={isLoading} error={error}>
+			<div className="flex flex-col gap-3">
+				{leadMember && (
+					<div className="flex items-center gap-5 bg-surface border border-border rounded-xl px-6 py-6">
+						<MemberAvatar member={leadMember} large />
 
-				return (
-					<div
-						key={member.id}
-						className="flex items-center gap-4 bg-surface border border-border rounded-xl px-5 py-4"
-					>
-						<MemberAvatar member={member} />
-
-						{/* Identity */}
-						<div className="flex flex-col gap-0.5 min-w-0 w-48 shrink-0">
+						<div className="flex flex-col gap-1 min-w-0 w-56 shrink-0">
 							<div className="flex items-center gap-2">
-								<span className="text-sm font-semibold text-text truncate">
-									{member.user.full_name}
+								<span className="text-base font-semibold text-text truncate">
+									{leadMember.user.full_name}
 								</span>
-								{isLead && (
-									<span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent shrink-0">
-										Lead
-									</span>
-								)}
+								<span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent shrink-0">
+									Lead
+								</span>
 							</div>
-							{member.user.department && (
+							{leadMember.user.department && (
 								<span className="text-xs text-muted truncate">
-									{member.user.department}
+									{leadMember.user.department}
 								</span>
 							)}
 						</div>
 
-						{/* Contacts */}
-						<div className="flex flex-col gap-0.5 min-w-0 flex-1">
+						<div className="flex flex-col gap-1 min-w-0 flex-1">
 							<a
-								href={`mailto:${member.user.email}`}
-								className="text-xs text-accent hover:underline truncate"
+								href={`mailto:${leadMember.user.email}`}
+								className="text-sm text-accent hover:underline truncate"
 							>
-								{member.user.email}
+								{leadMember.user.email}
 							</a>
-							{member.user.phone && (
+							{leadMember.user.phone && (
 								<a
-									href={`tel:${member.user.phone}`}
-									className="text-xs text-muted hover:text-text truncate"
+									href={`tel:${leadMember.user.phone}`}
+									className="text-sm text-muted hover:text-text truncate"
 								>
-									{member.user.phone}
+									{leadMember.user.phone}
 								</a>
 							)}
 						</div>
 
-						{/* Stats — lead/admin only, not shown for the lead themselves */}
-						{canManage && !isLead && (
-							<div className="flex items-center gap-5 shrink-0">
-								<StatPill label="To Do" value={stats.todo} color="text-text" />
-								<StatPill label="In Progress" value={stats.inProgress} color="text-blue-600" />
-								<StatPill label="Submitted" value={stats.submitted} color="text-yellow-600" />
-								<StatPill label="Done" value={stats.done} color="text-green-600" />
-								<StatPill label="Overdue" value={stats.overdue} color={stats.overdue > 0 ? 'text-danger' : 'text-muted'} />
-								<div className="flex flex-col items-center gap-0.5 w-10">
-									<span className="text-base font-semibold text-text">{completionRate}%</span>
-									<span className="text-xs text-muted">Done</span>
-								</div>
-							</div>
-						)}
-
-						{/* Spacer so remove button stays aligned when stats are hidden (lead row) */}
-						{canManage && isLead && <div className="flex-1" />}
-
-						{/* Remove — lead/admin only, can't remove the lead */}
-						{canManage && !isLead && (
-							<button
-								onClick={() => handleRemove(member.user.id)}
-								disabled={removingId === member.id}
-								className="shrink-0 text-muted hover:text-danger transition-colors disabled:opacity-40"
-								title="Remove member"
-							>
-								<UserMinus className="h-4 w-4" />
-							</button>
-						)}
+						{canManage && <div className="w-4 shrink-0" />}
 					</div>
-				);
-			})}
+				)}
 
-            {showAddMemberModal && users && (
-                <AddProjectMemberModal
-                    projectId={String(projectId)}
-                    users={users}
-                    members={project.members}
-                    onClose={() => setShowAddMemberModal(false)}
-                    onMutate={mutate}
-                />
-            )}
+				{canManage && nonLeadMembers.length > 0 && (
+					<div className="flex items-center gap-4 px-5">
+						<div className="w-10 shrink-0" />
+						<div className="w-48 shrink-0" />
+						<div className="flex-1" />
+						<div className="flex items-center gap-5 shrink-0">
+							{STAT_COLUMNS.map(col => (
+								<span key={col.key} className={'text-xs text-muted font-medium text-center ' + STAT_COL_WIDTH}>
+									{col.label}
+								</span>
+							))}
+						</div>
+						<div className="w-4 shrink-0" />
+					</div>
+				)}
 
-			{project.members.length === 0 && (
-				<p className="text-sm text-muted">No members yet.</p>
-			)}
-		</div>
+				{nonLeadMembers.map(member => {
+					const stats = statsByUser[member.user.id] ?? { todo: 0, inProgress: 0, submitted: 0, done: 0, overdue: 0 };
+					const total = stats.todo + stats.inProgress + stats.submitted + stats.done;
+					const completionRate = total > 0 ? Math.round((stats.done / total) * 100) : 0;
+
+					return (
+						<div
+							key={member.id}
+							className="flex items-center gap-4 bg-surface border border-border rounded-xl px-5 py-4"
+						>
+							<MemberAvatar member={member} />
+
+							<div className="flex flex-col gap-0.5 min-w-0 w-48 shrink-0">
+								<span className="text-sm font-semibold text-text truncate">
+									{member.user.full_name}
+								</span>
+								{member.user.department && (
+									<span className="text-xs text-muted truncate">
+										{member.user.department}
+									</span>
+								)}
+							</div>
+
+							<div className="flex flex-col gap-0.5 min-w-0 flex-1">
+								<a
+									href={`mailto:${member.user.email}`}
+									className="text-xs text-accent hover:underline truncate"
+								>
+									{member.user.email}
+								</a>
+								{member.user.phone && (
+									<a
+										href={`tel:${member.user.phone}`}
+										className="text-xs text-muted hover:text-text truncate"
+									>
+										{member.user.phone}
+									</a>
+								)}
+							</div>
+
+							{canManage && (
+								<div className="flex items-center gap-5 shrink-0">
+									<StatPill value={stats.todo} color="text-text" />
+									<StatPill value={stats.inProgress} color="text-blue-600" />
+									<StatPill value={stats.submitted} color="text-yellow-600" />
+									<StatPill value={stats.done} color="text-green-600" />
+									<StatPill value={stats.overdue} color={stats.overdue > 0 ? 'text-danger' : 'text-muted'} />
+									<div className={'flex items-center justify-center ' + STAT_COL_WIDTH}>
+										<span className="text-base font-semibold text-text">{completionRate}%</span>
+									</div>
+								</div>
+							)}
+
+							{canManage && (
+								<button
+									onClick={() => handleRemove(member.user.id)}
+									disabled={removingId === member.id}
+									className="shrink-0 text-muted hover:text-danger transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+									title="Remove member"
+								>
+									<UserMinus className="h-4 w-4" />
+								</button>
+							)}
+						</div>
+					);
+				})}
+
+				{showAddMemberModal && users && (
+					<AddProjectMemberModal
+						projectId={String(projectId)}
+						users={users}
+						members={project.members}
+						onClose={() => setShowAddMemberModal(false)}
+						onMutate={mutate}
+					/>
+				)}
+
+				{project.members.length === 0 && (
+					<p className="text-sm text-muted">No members yet.</p>
+				)}
+			</div>
+		</ProjectGuard>
 	);
 }

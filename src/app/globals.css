@@ -25,13 +25,13 @@
 .rte-display u { text-decoration: underline; }
 
 :root {
-  --bg: #F2F2F2;
-  --surface: #FFFFFF;
+  --bg: #f5ede7;
+  --surface: #fff7f2;
   --border: #E0E0E0;
-  --text: #1A1A1A;
-  --muted: #6B6B6B;
-  --accent: #49a55d;
-  --accent-hover: #437e4f;
+  --text: #261716;
+  --muted: #6f5a56;
+  --accent: #991b1b;
+  --accent-hover: #ff6d59;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-border: var(--border);

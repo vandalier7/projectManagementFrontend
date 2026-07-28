@@ -10,6 +10,12 @@ import {
 	useState,
 } from 'react';
 
+type BoardState =
+	| 'loading'
+	| 'ready'
+	| 'access_denied'
+	| 'not_found';
+
 // Each concern (actions, title, title adornment) gets its own read/write
 // context pair on purpose: pages that call the setter hooks must never
 // re-render just because the *value* changed — otherwise every update
@@ -24,21 +30,46 @@ const AppBarTitleSetterContext = createContext<Dispatch<SetStateAction<string | 
 const AppBarTitleAdornmentValueContext = createContext<ReactNode>(null);
 const AppBarTitleAdornmentSetterContext = createContext<Dispatch<SetStateAction<ReactNode>> | null>(null);
 
+const AppBarLogoValueContext = createContext<string | null>(null);
+const AppBarLogoSetterContext = createContext<Dispatch<SetStateAction<string | null>> | null>(null);
+
+const BoardStateValueContext = createContext<BoardState>('loading');
+const BoardStateSetterContext = createContext<
+	Dispatch<SetStateAction<BoardState>> | null
+>(null);
+
 export function AppBarActionsProvider({ children }: { children: ReactNode }) {
+
+	
+
 	const [actions, setActions] = useState<ReactNode>(null);
 	const [title, setTitle] = useState<string | null>(null);
 	const [titleAdornment, setTitleAdornment] = useState<ReactNode>(null);
+	const [logoUrl, setLogoUrl] = useState<string | null>(null);
+	const [boardState, setBoardState] = useState<BoardState>('loading');
+
+	
+
+	
 
 	return (
 		<AppBarActionsSetterContext.Provider value={setActions}>
 			<AppBarActionsValueContext.Provider value={actions}>
 				<AppBarTitleSetterContext.Provider value={setTitle}>
 					<AppBarTitleValueContext.Provider value={title}>
-						<AppBarTitleAdornmentSetterContext.Provider value={setTitleAdornment}>
-							<AppBarTitleAdornmentValueContext.Provider value={titleAdornment}>
-								{children}
-							</AppBarTitleAdornmentValueContext.Provider>
-						</AppBarTitleAdornmentSetterContext.Provider>
+						<BoardStateSetterContext.Provider value={setBoardState}>
+							<BoardStateValueContext.Provider value={boardState}>
+								<AppBarTitleAdornmentSetterContext.Provider value={setTitleAdornment}>
+									<AppBarTitleAdornmentValueContext.Provider value={titleAdornment}>
+										<AppBarLogoSetterContext.Provider value={setLogoUrl}>
+											<AppBarLogoValueContext.Provider value={logoUrl}>
+												{children}
+											</AppBarLogoValueContext.Provider>
+										</AppBarLogoSetterContext.Provider>
+									</AppBarTitleAdornmentValueContext.Provider>
+								</AppBarTitleAdornmentSetterContext.Provider>
+							</BoardStateValueContext.Provider>
+						</BoardStateSetterContext.Provider>
 					</AppBarTitleValueContext.Provider>
 				</AppBarTitleSetterContext.Provider>
 			</AppBarActionsValueContext.Provider>
@@ -120,4 +151,51 @@ export function useSetBoardTitleAdornment(adornment: ReactNode) {
 		return () => setAdornment(null);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [adornment]);
+}
+
+// --- Logo slot ---
+
+// Used by BoardShell to read whatever the current page has set as the
+// project logo shown in BoardAppBar.
+export function useAppBarLogoValue() {
+	return useContext(AppBarLogoValueContext);
+}
+
+// Used by individual board pages to set the logo shown in BoardAppBar
+// (e.g. the project's logo_url, once loaded). Clears on unmount so a
+// stale logo doesn't leak into a different project/page.
+export function useSetBoardLogo(logoUrl: string | null) {
+	const setLogoUrl = useContext(AppBarLogoSetterContext);
+
+	if (!setLogoUrl) {
+		throw new Error('useSetBoardLogo must be used within an AppBarActionsProvider');
+	}
+
+	useEffect(() => {
+		setLogoUrl(logoUrl);
+
+		return () => setLogoUrl(null);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [logoUrl]);
+}
+
+export function useBoardState() {
+	return useContext(BoardStateValueContext);
+}
+
+export function useSetBoardState(state: BoardState) {
+	const setBoardState = useContext(BoardStateSetterContext);
+
+	if (!setBoardState) {
+		throw new Error(
+			'useSetBoardState must be used within an AppBarActionsProvider'
+		);
+	}
+
+	useEffect(() => {
+		setBoardState(state);
+
+		return () => setBoardState('loading');
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [state]);
 }

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { FolderKanban, House } from 'lucide-react';
+import { FolderKanban, House, Users } from 'lucide-react';
 
 interface SidebarProps {
 	collapsed: boolean;
@@ -27,6 +27,11 @@ export default function Sidebar({
 			href: '/projects',
 			icon: FolderKanban,
 		},
+		{
+			label: 'Users',
+			href: '/users',
+			icon: Users,
+		},
 	];
 
 	return (
@@ -40,7 +45,7 @@ export default function Sidebar({
 					type="button"
 					onClick={onToggle}
 					title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-					className={`mx-3 flex items-center rounded-lg p-2 transition-colors hover:bg-bg ${
+					className={`cursor-pointer mx-3 flex items-center rounded-lg p-2 transition-colors hover:bg-bg ${
 						collapsed ? '' : 'gap-3 flex-1'
 					}`}
 				>
@@ -55,7 +60,7 @@ export default function Sidebar({
 
 					{!collapsed && (
 						<span className="truncate text-lg font-semibold text-text">
-							Project Manager
+							Project Management
 						</span>
 					)}
 				</button>
@@ -73,7 +78,7 @@ export default function Sidebar({
 								type="button"
 								onClick={() => router.push(item.href)}
 								title={collapsed ? item.label : undefined}
-								className={`flex w-full min-w-0 items-center justify-start rounded-lg px-3 py-3 text-sm font-medium transition-colors ${
+								className={`cursor-pointer flex w-full min-w-0 items-center justify-start rounded-lg px-3 py-3 text-sm font-medium transition-colors ${
 									collapsed ? '' : 'gap-3'
 								} ${
 									active

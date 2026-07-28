@@ -58,7 +58,16 @@ function AppShellLayout({ children }: AppShellProps) {
 			return;
 		}
 
-		setUser(getUser());
+		const currentUser = getUser();
+		setUser(currentUser);
+
+		if (currentUser && !currentUser.profile_completed) {
+			router.replace('/complete-profile');
+		}
+
+		if (currentUser && currentUser.must_change_password) {
+			router.replace('/change-password');
+		}
 	}, [router]);
 
 	useEffect(() => {
@@ -68,15 +77,11 @@ function AppShellLayout({ children }: AppShellProps) {
 		);
 	}, [sidebarCollapsed]);
 
-	const handleLogout = () => {
+	const handleLogout = async () => {
 		setLoggingOut(true);
+		setUser(null);
 
-		clearToken();
-		clearUser();
-
-		mutate(() => true, undefined, { revalidate: false });
-
-		logout();
+		await logout();  // clears token, user, and (now properly awaited) SWR cache
 
 		router.replace('/');
 	};
@@ -94,6 +99,9 @@ function AppShellLayout({ children }: AppShellProps) {
 
 			case '/users/new':
 				return 'Add New Member';
+
+			case '/users':
+				return 'Users';
 
 			default:
 				return 'Project Dashboard';

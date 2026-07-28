@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import type { User } from '@/lib/auth';
 import RichTextEditor from '@/components/RichTextEditor';
-import { Check, X } from 'lucide-react';
+import { Check, X, User as UserIcon } from 'lucide-react';
 
 interface Member {
 	id: number;
@@ -30,7 +30,7 @@ interface Props {
 	members: Member[];
 	currentUser: User;
 	onClose: () => void;
-	onMutate: () => void;
+	onMutate: (updatedTask?: any) => void;
 }
 
 export default function TaskEditModal({
@@ -48,12 +48,70 @@ export default function TaskEditModal({
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	// Assignee type-in combobox — same pattern as TaskCreateModal.
+	const [assigneeQuery, setAssigneeQuery] = useState(task.assignee?.full_name ?? '');
+	const [assigneeOpen, setAssigneeOpen] = useState(false);
+	const [highlightIndex, setHighlightIndex] = useState(0);
+	const assigneeBoxRef = useRef<HTMLDivElement>(null);
+
+	const selectedMember = members.find(m => String(m.user.id) === assignedTo);
+
+	const filteredMembers = members.filter(m =>
+		m.user.full_name.toLowerCase().includes(assigneeQuery.toLowerCase())
+	);
+	const comboOptions: { id: string; label: string }[] = [
+		{ id: '', label: 'Unassigned' },
+		...filteredMembers.map(m => ({ id: String(m.user.id), label: m.user.full_name })),
+	];
+
+	useEffect(() => {
+		function handleClickOutside(e: MouseEvent) {
+			if (assigneeBoxRef.current && !assigneeBoxRef.current.contains(e.target as Node)) {
+				setAssigneeOpen(false);
+				setAssigneeQuery(selectedMember?.user.full_name ?? '');
+			}
+		}
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => document.removeEventListener('mousedown', handleClickOutside);
+	}, [selectedMember]);
+
+	const selectAssignee = (id: string, label: string) => {
+		setAssignedTo(id);
+		setAssigneeQuery(id === '' ? '' : label);
+		setAssigneeOpen(false);
+	};
+
+	const handleAssigneeKeyDown = (e: React.KeyboardEvent) => {
+		if (!assigneeOpen) {
+			if (e.key === 'ArrowDown' || e.key === 'Enter') {
+				setAssigneeOpen(true);
+				setHighlightIndex(0);
+			}
+			return;
+		}
+
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			setHighlightIndex(i => Math.min(i + 1, comboOptions.length - 1));
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			setHighlightIndex(i => Math.max(i - 1, 0));
+		} else if (e.key === 'Enter') {
+			e.preventDefault();
+			const opt = comboOptions[highlightIndex];
+			if (opt) selectAssignee(opt.id, opt.label);
+		} else if (e.key === 'Escape') {
+			setAssigneeOpen(false);
+			setAssigneeQuery(selectedMember?.user.full_name ?? '');
+		}
+	};
+
 	const handleSave = async () => {
 		setLoading(true);
 		setError(null);
 
 		try {
-			await apiClient(`/tasks/${task.id}`, {
+			const updated = await apiClient(`/tasks/${task.id}`, {
 				method: 'PUT',
 				body: JSON.stringify({
 					acting_as_user_id: currentUser.id,
@@ -64,7 +122,18 @@ export default function TaskEditModal({
 					due_date: dueDate || null,
 				}),
 			});
-			onMutate();
+			// Same reasoning as TaskCreateModal: the PUT response doesn't
+			// carry a loaded `assignee` relation, so it's reattached here
+			// from the already-selected member so the caller can splice
+			// this straight into its list without refetching.
+			const updatedWithAssignee = {
+				...task,
+				...updated,
+				assignee: selectedMember
+					? { id: selectedMember.user.id, full_name: selectedMember.user.full_name }
+					: null,
+			};
+			onMutate(updatedWithAssignee);
 			onClose();
 		} catch (err: any) {
 			setError(err.message);
@@ -75,10 +144,10 @@ export default function TaskEditModal({
 
 	return (
 		<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[110]" onClick={onClose}>
-			<div className="bg-surface border border-border rounded-xl shadow-md w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+			<div className="bg-surface border border-border rounded-xl shadow-md w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
 
-				<div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border gap-3">
-					<div className="flex items-center gap-2.5 min-w-0">
+				<div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border gap-4">
+					<div className="flex items-center gap-2.5 min-w-0 shrink-0">
 						<h2 className="text-base font-semibold text-text m-0 whitespace-nowrap">Edit Task</h2>
 
 						<span
@@ -94,6 +163,43 @@ export default function TaskEditModal({
 								: <><X size={10} strokeWidth={2.5} /> Submission Not Required</>
 							}
 						</span>
+					</div>
+
+					<div className="relative flex items-center gap-1.5 flex-1 min-w-0 max-w-[200px] border border-border rounded bg-bg px-2.5 py-1.5" ref={assigneeBoxRef}>
+						<UserIcon size={14} className="text-muted shrink-0" />
+						<input
+							className="text-sm text-text bg-transparent border-none outline-none min-w-0 w-full"
+							placeholder="Unassigned"
+							value={assigneeQuery}
+							onChange={e => {
+								setAssigneeQuery(e.target.value);
+								setAssigneeOpen(true);
+								setHighlightIndex(0);
+							}}
+							onFocus={() => setAssigneeOpen(true)}
+							onKeyDown={handleAssigneeKeyDown}
+						/>
+						{assigneeOpen && (
+							<div className="absolute top-[calc(100%+4px)] left-0 right-0 min-w-[180px] max-h-[180px] overflow-y-auto bg-surface border border-border rounded shadow-md z-10">
+								{comboOptions.length === 0 ? (
+									<div className="text-sm text-muted px-2.5 py-2">No matches</div>
+								) : (
+									comboOptions.map((opt, i) => (
+										<div
+											key={opt.id || 'unassigned'}
+											className={`text-sm text-text px-2.5 py-2 cursor-pointer ${i === highlightIndex ? 'bg-bg' : ''}`}
+											onMouseDown={e => {
+												e.preventDefault();
+												selectAssignee(opt.id, opt.label);
+											}}
+											onMouseEnter={() => setHighlightIndex(i)}
+										>
+											{opt.label}
+										</div>
+									))
+								)}
+							</div>
+						)}
 					</div>
 
 					<button className="text-sm text-muted bg-transparent border-none cursor-pointer hover:text-text p-0 leading-none shrink-0" onClick={onClose}>✕</button>
@@ -118,22 +224,6 @@ export default function TaskEditModal({
 							placeholder="Optional description"
 							minHeight={100}
 						/>
-					</div>
-
-					<div className="flex flex-col gap-1.5">
-						<label className="text-xs text-muted uppercase tracking-wide">Assign to</label>
-						<select
-							className="text-sm text-text bg-bg border border-border rounded px-3 py-2.5 outline-none focus:border-accent transition-colors cursor-pointer"
-							value={assignedTo}
-							onChange={e => setAssignedTo(e.target.value)}
-						>
-							<option value="">Unassigned</option>
-							{members.map(m => (
-								<option key={m.user.id} value={m.user.id}>
-									{m.user.full_name}
-								</option>
-							))}
-						</select>
 					</div>
 
 					<div className="flex gap-4">

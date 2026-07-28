@@ -44,8 +44,8 @@ export const clearUser = (): void => {
 // calling the global mutate() with no data and a special clear flag, which
 // is SWR's documented way to wipe its entire cache imperatively (used
 // outside of any component, e.g. here in a plain auth helper).
-const clearSwrCache = (): void => {
-	mutate(() => true, undefined, { revalidate: false });
+const clearSwrCache = (): Promise<void> => {
+	return mutate(() => true, undefined, { revalidate: false }).then(() => {});
 };
 
 // --- Auth calls ---
@@ -68,7 +68,7 @@ export const login = async (
 	}
 
 	const data = await res.json();
-	clearSwrCache();
+	await clearSwrCache();   // wait for it to actually finish
 	setToken(data.token);
 	setUser(data.user);
 	return data;
@@ -86,7 +86,7 @@ export const logout = async (): Promise<void> => {
 			},
 		});
 	}
-	clearSwrCache();
+	await clearSwrCache();
 	clearToken();
 	clearUser();
 };
@@ -103,4 +103,6 @@ export interface User {
 	system_role: 'admin' | 'team_member';
 	status: string;
 	avatar_url: string | null;
+	profile_completed: boolean;
+	must_change_password: boolean;
 }
