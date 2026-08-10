@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { getUser } from '@/lib/auth';
 import type { User } from '@/lib/auth';
-import { useSetBoardTitle, useSetBoardLogo } from '@/components/layout/AppBarActionsContext';
+import { useSetBoardTitle, useSetBoardLogo, useSetBoardThemeColor } from '@/components/layout/AppBarActionsContext';
 import ProjectGuard from '@/components/feedback/ProjectGuard';
 import ProjectHeaderCard from '@/components/projects/ProjectHeaderCard';
 import {
@@ -53,6 +53,7 @@ interface Project {
 	members: Member[];
 	banner_url: string | null;
 	logo_url: string | null;
+	theme_color: string | null;
 }
 
 function daysSince(dateStr: string): number {
@@ -88,6 +89,7 @@ export default function ProjectDashboardPage() {
 
 	useSetBoardTitle(error ? '' : project?.name ?? null);
 	useSetBoardLogo(project?.logo_url ?? null);
+	useSetBoardThemeColor(project?.theme_color ?? null);
 
 	const stats = useMemo(() => {
 		const tasks = project?.tasks ?? [];
@@ -275,7 +277,7 @@ export default function ProjectDashboardPage() {
 							/>
 
 							<div className="text-5xl font-mono font-semibold">
-								{project.members.length}
+								{project.members ? project.members.length : 0}
 							</div>
 
 							<div className="mt-2 text-xs uppercase tracking-wide text-muted">

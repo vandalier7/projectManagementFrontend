@@ -7,6 +7,7 @@ import {
 	SetStateAction,
 	useContext,
 	useEffect,
+	useLayoutEffect,
 	useState,
 } from 'react';
 
@@ -33,6 +34,9 @@ const AppBarTitleAdornmentSetterContext = createContext<Dispatch<SetStateAction<
 const AppBarLogoValueContext = createContext<string | null>(null);
 const AppBarLogoSetterContext = createContext<Dispatch<SetStateAction<string | null>> | null>(null);
 
+const AppBarThemeColorValueContext = createContext<string | null>(null);
+const AppBarThemeColorSetterContext = createContext<Dispatch<SetStateAction<string | null>> | null>(null);
+
 const BoardStateValueContext = createContext<BoardState>('loading');
 const BoardStateSetterContext = createContext<
 	Dispatch<SetStateAction<BoardState>> | null
@@ -48,7 +52,7 @@ export function AppBarActionsProvider({ children }: { children: ReactNode }) {
 	const [logoUrl, setLogoUrl] = useState<string | null>(null);
 	const [boardState, setBoardState] = useState<BoardState>('loading');
 
-	
+	const [themeColor, setThemeColor] = useState<string | null>(null);
 
 	
 
@@ -63,7 +67,11 @@ export function AppBarActionsProvider({ children }: { children: ReactNode }) {
 									<AppBarTitleAdornmentValueContext.Provider value={titleAdornment}>
 										<AppBarLogoSetterContext.Provider value={setLogoUrl}>
 											<AppBarLogoValueContext.Provider value={logoUrl}>
-												{children}
+												<AppBarThemeColorSetterContext.Provider value={setThemeColor}>
+													<AppBarThemeColorValueContext.Provider value={themeColor}>
+														{children}
+													</AppBarThemeColorValueContext.Provider>
+												</AppBarThemeColorSetterContext.Provider>
 											</AppBarLogoValueContext.Provider>
 										</AppBarLogoSetterContext.Provider>
 									</AppBarTitleAdornmentValueContext.Provider>
@@ -177,6 +185,35 @@ export function useSetBoardLogo(logoUrl: string | null) {
 		return () => setLogoUrl(null);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [logoUrl]);
+}
+
+// --- Theme color slot ---
+
+// Used by BoardShell to read whatever the current page has set as the
+// active project theme color.
+export function useAppBarThemeColorValue() {
+	return useContext(AppBarThemeColorValueContext);
+}
+
+// Used by individual board pages to set the theme color BoardShell uses to
+// tint the shell (sidebar/appbar/etc). Clears on unmount so a stale color
+// doesn't leak into a different project/page.
+export function useSetBoardThemeColor(themeColor: string | null) {
+	const setThemeColor = useContext(AppBarThemeColorSetterContext);
+
+	if (!setThemeColor) {
+		throw new Error('useSetBoardThemeColor must be used within an AppBarActionsProvider');
+	}
+
+	// useLayoutEffect (not useEffect) here specifically: on route changes,
+	// the old page's cleanup (setThemeColor(null)) and the new page's set
+	// both need to land before the browser paints, or you get a visible
+	// flash back to the untinted default in between.
+	useLayoutEffect(() => {
+		setThemeColor(themeColor);
+		return () => setThemeColor(null);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [themeColor]);
 }
 
 export function useBoardState() {

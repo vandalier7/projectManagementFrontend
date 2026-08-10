@@ -5,7 +5,7 @@ import { apiClient } from '@/lib/api';
 import type { User } from '@/lib/auth';
 import { useEffect } from 'react';
 import RichTextEditor from '@/components/RichTextEditor';
-import { Check, X, User as UserIcon } from 'lucide-react';
+import { Check, X, User as UserIcon, Bell } from 'lucide-react';
 
 interface Member {
 	id: number;
@@ -13,6 +13,7 @@ interface Member {
 		id: number;
 		full_name: string;
 		system_role: 'admin' | 'team_member';
+		profile_completed: boolean;
 	};
 }
 
@@ -32,7 +33,7 @@ interface Props {
 
 export default function TaskCreateModal({
 	projectId,
-	members,
+	members = [],
 	currentUser,
 	defaultRequiresSubmission,
 	onClose,
@@ -50,6 +51,7 @@ export default function TaskCreateModal({
 	const [priority, setPriority] = useState('medium');
 	const [requiresSubmission, setRequiresSubmission] = useState(isSystemProject ? false : defaultRequiresSubmission);
 	const [dueDate, setDueDate] = useState('');
+	const [notifyAll, setNotifyAll] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +66,10 @@ export default function TaskCreateModal({
 
 	// Combobox options: "Unassigned" always first, then members filtered by
 	// the typed query (case-insensitive substring match on full_name).
-	const filteredMembers = members.filter(m =>
+	const filteredMembers = members.filter(
+	m =>
+		m.user.profile_completed &&
+		m.user.system_role !== 'admin' &&
 		m.user.full_name.toLowerCase().includes(assigneeQuery.toLowerCase())
 	);
 	const comboOptions: { id: string; label: string }[] = [
@@ -131,6 +136,7 @@ export default function TaskCreateModal({
 					priority,
 					requires_submission: requiresSubmission,
 					due_date: dueDate || null,
+					notify_all: notifyAll,
 				}),
 			});
 			// The backend's store() returns the bare Task model — no
@@ -170,41 +176,54 @@ export default function TaskCreateModal({
 						</button>
 					</div>
 
-					<div className="headerAssignee" ref={assigneeBoxRef}>
-						<UserIcon size={14} className="headerAssigneeIcon" />
-						<input
-							className="headerAssigneeInput"
-							placeholder="Unassigned"
-							value={assigneeQuery}
-							onChange={e => {
-								setAssigneeQuery(e.target.value);
-								setAssigneeOpen(true);
-								setHighlightIndex(0);
-							}}
-							onFocus={() => setAssigneeOpen(true)}
-							onKeyDown={handleAssigneeKeyDown}
-						/>
-						{assigneeOpen && (
-							<div className="comboList comboList--header">
-								{comboOptions.length === 0 ? (
-									<div className="comboEmpty">No matches</div>
-								) : (
-									comboOptions.map((opt, i) => (
-										<div
-											key={opt.id || 'unassigned'}
-											className={`comboOption ${i === highlightIndex ? 'comboOption--active' : ''}`}
-											onMouseDown={e => {
-												e.preventDefault();
-												selectAssignee(opt.id, opt.label);
-											}}
-											onMouseEnter={() => setHighlightIndex(i)}
-										>
-											{opt.label}
-										</div>
-									))
-								)}
-							</div>
+					<div className="headerAssigneeWrap">
+						{assignedTo && (
+							<button
+								type="button"
+								className="notifyIconBtn"
+								onClick={() => setNotifyAll(v => !v)}
+								title={notifyAll ? 'Notify all project members' : 'Notify assignee only'}
+							>
+								<Bell size={12} />
+								{notifyAll ? 'Everyone' : 'Assignee'}
+							</button>
 						)}
+						<div className="headerAssignee" ref={assigneeBoxRef}>
+							<UserIcon size={14} className="headerAssigneeIcon" />
+							<input
+								className="headerAssigneeInput"
+								placeholder="Unassigned"
+								value={assigneeQuery}
+								onChange={e => {
+									setAssigneeQuery(e.target.value);
+									setAssigneeOpen(true);
+									setHighlightIndex(0);
+								}}
+								onFocus={() => setAssigneeOpen(true)}
+								onKeyDown={handleAssigneeKeyDown}
+							/>
+							{assigneeOpen && (
+								<div className="comboList comboList--header">
+									{comboOptions.length === 0 ? (
+										<div className="comboEmpty">No matches</div>
+									) : (
+										comboOptions.map((opt, i) => (
+											<div
+												key={opt.id || 'unassigned'}
+												className={`comboOption ${i === highlightIndex ? 'comboOption--active' : ''}`}
+												onMouseDown={e => {
+													e.preventDefault();
+													selectAssignee(opt.id, opt.label);
+												}}
+												onMouseEnter={() => setHighlightIndex(i)}
+											>
+												{opt.label}
+											</div>
+										))
+									)}
+								</div>
+							)}
+						</div>
 					</div>
 
 					<button className="closeBtn" onClick={onClose}>✕</button>
@@ -308,6 +327,39 @@ export default function TaskCreateModal({
 					gap: 16px;
 				}
 
+				.headerAssigneeWrap {
+					display: flex;
+					align-items: center;
+					gap: 6px;
+					flex: 1;
+					min-width: 0;
+					max-width: 280px;
+				}
+
+				.notifyIconBtn {
+					flex-shrink: 0;
+					display: inline-flex;
+					align-items: center;
+					gap: 4px;
+					height: 28px;
+					padding: 0 8px;
+					border-radius: var(--radius);
+					border: 1px solid var(--border);
+					background: var(--bg);
+					color: var(--muted);
+					font-family: var(--font-ui);
+					font-size: 11px;
+					font-weight: 500;
+					white-space: nowrap;
+					cursor: pointer;
+					transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+				}
+
+				.notifyIconBtn:hover {
+					color: var(--text);
+					border-color: var(--accent);
+				}
+
 				.headerAssignee {
 					position: relative;
 					display: flex;
@@ -315,7 +367,6 @@ export default function TaskCreateModal({
 					gap: 6px;
 					flex: 1;
 					min-width: 0;
-					max-width: 200px;
 					border: 1px solid var(--border);
 					border-radius: var(--radius);
 					padding: 6px 10px;
@@ -336,6 +387,9 @@ export default function TaskCreateModal({
 					outline: none;
 					min-width: 0;
 					width: 100%;
+					overflow: hidden;
+					text-overflow: ellipsis;
+					white-space: nowrap;
 				}
 
 				.comboList--header {

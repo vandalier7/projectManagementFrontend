@@ -87,6 +87,10 @@ function AppShellLayout({ children }: AppShellProps) {
 	};
 
 	const getPageTitle = () => {
+		if (/^\/users\/[^/]+\/edit$/.test(pathname)) {
+			return 'Edit User';
+		}
+
 		switch (pathname) {
 			case '/dashboard':
 				return 'Home';
@@ -98,10 +102,13 @@ function AppShellLayout({ children }: AppShellProps) {
 				return 'New Project';
 
 			case '/users/new':
-				return 'Add New Member';
+				return 'Add New User';
 
 			case '/users':
 				return 'Users';
+
+			case '/admin':
+				return 'Admin Account';
 
 			default:
 				return 'Project Dashboard';

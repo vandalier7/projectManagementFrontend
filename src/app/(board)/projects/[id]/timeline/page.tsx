@@ -6,8 +6,9 @@ import useSWR from 'swr';
 import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import { getUser } from '@/lib/auth';
 import type { User } from '@/lib/auth';
-import { useSetBoardTitle, useSetBoardLogo } from '@/components/layout/AppBarActionsContext';
+import { useSetBoardTitle, useSetBoardLogo, useSetBoardThemeColor } from '@/components/layout/AppBarActionsContext';
 import ProjectGuard from '@/components/feedback/ProjectGuard';
+
 
 export interface Assignee {
 	id: number;
@@ -39,6 +40,7 @@ interface Project {
 	id: number;
 	name: string;
 	logo_url: string | null;
+	theme_color: string | null;
 	tasks: Task[];
 }
 
@@ -46,7 +48,7 @@ const STATUS_META: Record<TaskStatus, { label: string; dot: string; text: string
 	todo:        { label: 'To Do',       dot: 'bg-surface border-2 border-muted',      text: 'text-muted' },
 	in_progress: { label: 'In Progress', dot: 'bg-surface border-2 border-blue-600',   text: 'text-blue-600' },
 	submitted:   { label: 'Submitted',   dot: 'bg-surface border-2 border-yellow-600', text: 'text-yellow-600' },
-	done:        { label: 'Done',        dot: 'bg-green-600 border-2 border-green-600', text: 'text-green-600' },
+	done:        { label: 'Done',        dot: 'bg-accent border-2 border-accent',      text: 'text-accent' },
 	closed:      { label: 'Closed',      dot: 'bg-danger border-2 border-danger',      text: 'text-danger' },
 };
 
@@ -183,6 +185,10 @@ export default function ProjectTimelinePage() {
 	useSetBoardTitle(project?.name ? `${project.name} / Timeline` : null);
 	useSetBoardLogo(project?.logo_url ?? null);
 
+	useSetBoardTitle(project?.name ? `${project.name} / Timeline` : null);
+	useSetBoardLogo(project?.logo_url ?? null);
+	useSetBoardThemeColor(project?.theme_color ?? null);
+
 	useEffect(() => {
 		return () => {
 			if (pendingExpandTimeout.current) window.clearTimeout(pendingExpandTimeout.current);
@@ -223,7 +229,7 @@ export default function ProjectTimelinePage() {
 							const meta = STATUS_META[task.status];
 							const isExpanded = expandedTaskId === task.id;
 							const revisionCount = buildHistoryChain(task).length;
-							const isExpandable = revisionCount > 1;
+							const isExpandable = revisionCount >= 1;
 							const chain = isExpanded ? buildHistoryChain(task) : [];
 							const isSelected = selectedTask?.id === task.id;
 
@@ -289,8 +295,8 @@ export default function ProjectTimelinePage() {
 														const isHistorySelected = selectedTask?.id === historyTask.id;
 
 														return (
-															<div key={historyTask.id} className="relative flex gap-3">
-																<div className="relative z-10 flex h-8 w-8 shrink-0 items-center justify-center">
+															<div key={historyTask.id} className="relative flex gap-2">
+																<div className="relative z-10 flex h-8 w-3 shrink-0 items-center justify-center">
 																	<div className={`h-2.5 w-2.5 rounded-full ${STATUS_META[historyTask.status].dot}`} />
 																</div>
 

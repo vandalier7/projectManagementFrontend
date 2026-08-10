@@ -8,6 +8,7 @@
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-accent-hover: var(--accent-hover);
   --color-danger: #D94F4F;
 
@@ -32,6 +33,7 @@
   --muted: #6f5a56;
   --accent: #991b1b;
   --accent-hover: #ff6d59;
+  --accent-foreground: #ffffff;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-border: var(--border);

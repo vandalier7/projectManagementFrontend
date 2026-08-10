@@ -44,9 +44,9 @@ export default function LoginPage() {
 					<Image
 						src="/logo.png"
 						alt="Project Dashboard"
-						width={72}
-						height={72}
-						className="h-[72px] w-[72px] object-contain"
+						width={960}
+						height={960}
+						className="h-[108px] w-[108px] object-contain"
 						priority
 					/>
 

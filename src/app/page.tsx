@@ -51,9 +51,9 @@ export default function LandingPage() {
 			<Image
 				src="/logo.png"
 				alt="Project Dashboard"
-				width={96}
-				height={96}
-				className="h-24 w-24 object-contain"
+				width={960}
+				height={960}
+				className="h-48 w-48 object-contain"
 				priority
 			/>
 

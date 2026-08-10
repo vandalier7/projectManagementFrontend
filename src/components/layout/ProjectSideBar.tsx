@@ -72,7 +72,7 @@ export default function ProjectSidebar() {
 								aria-disabled={disabled}
 								className={`flex w-full items-center justify-start gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors ${
 									active && !disabled
-										? 'bg-accent text-white'
+										? 'bg-accent text-accent-foreground'
 										: disabled
 											? 'cursor-not-allowed text-muted opacity-50'
 											: 'text-text hover:bg-bg'

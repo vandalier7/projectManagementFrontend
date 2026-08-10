@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { getUser } from '@/lib/auth';
 import type { User } from '@/lib/auth';
-import { Plus, UserMinus, KeyRound } from 'lucide-react';
+import { Plus, UserMinus, KeyRound, Pencil, MoreVertical } from 'lucide-react';
 import { useSetAppBarActions } from '@/components/layout/AppBarActionsContext';
 import { apiClient } from '@/lib/api';
 import SecurityConfirmation, { SecurityLevel } from '@/components/SecurityConfirmationModal';
@@ -83,6 +83,15 @@ Thank you.`
 	);
 }
 
+function openGmailCompose(email: string) {
+	const to = encodeURIComponent(email);
+
+	window.open(
+		`https://mail.google.com/mail/?view=cm&fs=1&to=${to}`,
+		'_blank'
+	);
+}
+
 interface PendingAction {
 	userId: number;
 	title: string;
@@ -91,10 +100,117 @@ interface PendingAction {
 	run: (password?: string) => Promise<void>;
 }
 
+interface UserActionsMenuProps {
+	user: UserRecord;
+	open: boolean;
+	onToggle: () => void;
+	onClose: () => void;
+	onEdit: (user: UserRecord) => void;
+	onForcePasswordChange: (user: UserRecord) => void;
+	onRemove: (user: UserRecord) => void;
+	removing: boolean;
+}
+
+function UserActionsMenu({
+	user,
+	open,
+	onToggle,
+	onClose,
+	onEdit,
+	onForcePasswordChange,
+	onRemove,
+	removing,
+}: UserActionsMenuProps) {
+	const containerRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		if (!open) return;
+
+		function handleClickOutside(event: MouseEvent) {
+			if (
+				containerRef.current &&
+				!containerRef.current.contains(event.target as Node)
+			) {
+				onClose();
+			}
+		}
+
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.key === 'Escape') onClose();
+		}
+
+		document.addEventListener('mousedown', handleClickOutside);
+		document.addEventListener('keydown', handleKeyDown);
+		return () => {
+			document.removeEventListener('mousedown', handleClickOutside);
+			document.removeEventListener('keydown', handleKeyDown);
+		};
+	}, [open, onClose]);
+
+	return (
+		<div className="relative shrink-0" ref={containerRef}>
+			<button
+				onClick={onToggle}
+				disabled={removing}
+				className="cursor-pointer shrink-0 text-muted hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed p-1 rounded-md hover:bg-bg"
+				title="More actions"
+				aria-haspopup="menu"
+				aria-expanded={open}
+			>
+				<MoreVertical className="h-4 w-4" />
+			</button>
+
+			{open && (
+				<div
+					role="menu"
+					className="absolute right-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-surface py-1 shadow-lg"
+				>
+					<button
+						role="menuitem"
+						onClick={() => {
+							onClose();
+							onEdit(user);
+						}}
+						className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-bg cursor-pointer"
+					>
+						<Pencil className="h-4 w-4 text-muted" />
+						Edit Details
+					</button>
+
+					<button
+						role="menuitem"
+						onClick={() => {
+							onClose();
+							onForcePasswordChange(user);
+						}}
+						className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-bg cursor-pointer"
+					>
+						<KeyRound className="h-4 w-4 text-muted" />
+						Change Password
+					</button>
+
+					<button
+						role="menuitem"
+						onClick={() => {
+							onClose();
+							onRemove(user);
+						}}
+						className="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-bg cursor-pointer"
+					>
+						<UserMinus className="h-4 w-4" />
+						Delete User
+					</button>
+				</div>
+			)}
+		</div>
+	);
+}
+
 export default function UsersPage() {
 	const router = useRouter();
 	const [currentUser, setCurrentUser] = useState<User | null>(null);
 	const [removingId, setRemovingId] = useState<number | null>(null);
+	const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 	const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 	const [generatedCredentials, setGeneratedCredentials] =
 		useState<GeneratedCredentials | null>(null);
@@ -129,6 +245,10 @@ export default function UsersPage() {
 			user => user.system_role !== 'admin' && user.profile_completed
 		);
 	}, [users]);
+
+	const handleEdit = (user: UserRecord) => {
+		router.push(`/users/${user.id}/edit`);
+	};
 
 	const handleRemove = (user: UserRecord) => {
 		setPendingAction({
@@ -217,12 +337,12 @@ export default function UsersPage() {
 						</div>
 
 						<div className="flex-1 min-w-0 flex flex-col">
-							<a
-								href={`mailto:${user.email}`}
-								className="text-xs text-accent hover:underline truncate"
+							<button
+								onClick={() => openGmailCompose(user.email)}
+								className="text-left text-xs text-accent hover:underline truncate cursor-pointer"
 							>
 								{user.email}
-							</a>
+							</button>
 							{user.phone && (
 								<a
 									href={`tel:${user.phone}`}
@@ -234,24 +354,18 @@ export default function UsersPage() {
 						</div>
 
 						{currentUser?.system_role === 'admin' && (
-							<div className="flex items-center gap-2">
-								<button
-									onClick={() => handleForcePasswordChange(user)}
-									className="cursor-pointer shrink-0 text-muted hover:text-accent transition-colors"
-									title="Force password change"
-								>
-									<KeyRound className="h-4 w-4" />
-								</button>
-
-								<button
-									onClick={() => handleRemove(user)}
-									disabled={removingId === user.id}
-									className="cursor-pointer shrink-0 text-muted hover:text-danger transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-									title="Delete user"
-								>
-									<UserMinus className="h-4 w-4" />
-								</button>
-							</div>
+							<UserActionsMenu
+								user={user}
+								open={openMenuId === user.id}
+								onToggle={() =>
+									setOpenMenuId(prev => (prev === user.id ? null : user.id))
+								}
+								onClose={() => setOpenMenuId(null)}
+								onEdit={handleEdit}
+								onForcePasswordChange={handleForcePasswordChange}
+								onRemove={handleRemove}
+								removing={removingId === user.id}
+							/>
 						)}
 					</div>
 				))}

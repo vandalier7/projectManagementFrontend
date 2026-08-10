@@ -131,7 +131,7 @@ export default function ProjectHeaderCard({
 				</h1>
 
 				<span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide border border-current/30 ${textColorClass}`}>
-					{project.status}
+					{project.status.replace(/_/g, ' ')}
 				</span>
 			</div>
 

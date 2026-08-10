@@ -54,11 +54,21 @@ const statusChip: Record<string, string> = {
 	closed: 'bg-gray-100 text-muted',
 };
 
-const priorityChip: Record<string, string> = {
-	high: 'bg-surface text-accent border border-accent',
-	medium: 'bg-surface text-accent-hover border border-accent-hover',
-	low: 'bg-surface text-muted border border-muted',
-};
+// Keep in sync with the flag of the same name in the board page (page.tsx).
+// true = theme-derived accent colors, false = fixed Green/Yellow/Red-Orange.
+const inheritPriorityColors = false;
+
+const priorityChip: Record<string, string> = inheritPriorityColors
+  ? {
+		high: 'bg-surface text-accent border border-accent',
+		medium: 'bg-surface text-accent-hover border border-accent-hover',
+		low: 'bg-surface text-muted border border-muted',
+	}
+	: {
+		high: 'bg-black/1 text-[#ff4d1c] border border-[#ff4d1c]',
+		medium: 'bg-black/1 text-[#f5c518] border border-[#f5c518]',
+		low: 'bg-black/1 text-[#2e9e44] border border-[#2e9e44]',
+	};
 
 const statusLabel: Record<string, string> = {
 	todo: 'To Do',

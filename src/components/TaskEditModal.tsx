@@ -12,6 +12,7 @@ interface Member {
 		id: number;
 		full_name: string;
 		system_role: 'admin' | 'team_member';
+		profile_completed: boolean;
 	};
 }
 
@@ -56,7 +57,10 @@ export default function TaskEditModal({
 
 	const selectedMember = members.find(m => String(m.user.id) === assignedTo);
 
-	const filteredMembers = members.filter(m =>
+	const filteredMembers = members.filter(
+	m =>
+		m.user.profile_completed &&
+		m.user.system_role !== 'admin' &&
 		m.user.full_name.toLowerCase().includes(assigneeQuery.toLowerCase())
 	);
 	const comboOptions: { id: string; label: string }[] = [

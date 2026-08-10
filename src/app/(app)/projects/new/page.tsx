@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { getUser } from '@/lib/auth';
@@ -11,6 +11,7 @@ interface UserOption {
 	id: number;
 	full_name: string;
 	username: string;
+	profile_completed: boolean;
 }
 
 export default function NewProjectPage() {
@@ -22,6 +23,10 @@ export default function NewProjectPage() {
 	const [name, setName] = useState('');
 	const [description, setDescription] = useState('');
 	const [leadId, setLeadId] = useState('');
+	const [leadQuery, setLeadQuery] = useState('');
+	const [leadOpen, setLeadOpen] = useState(false);
+	const [highlightIndex, setHighlightIndex] = useState(0);
+	const leadBoxRef = useRef<HTMLDivElement>(null);
 	const [startDate, setStartDate] = useState('');
 	const [endDate, setEndDate] = useState('');
 	const [budget, setBudget] = useState('');
@@ -46,6 +51,65 @@ export default function NewProjectPage() {
 	const { data: users } = useSWR<UserOption[]>(
 		checkedAccess ? '/users' : null
 	);
+
+	const selectedLead = users?.find(u => String(u.id) === leadId);
+
+	// Same pattern as TaskCreateModal's assignee combobox — filtered by
+	// profile_completed (anyone, including admins, can be a lead) and by
+	// the typed query against full_name.
+	const filteredUsers = (users ?? []).filter(
+		u =>
+			u.profile_completed &&
+			u.full_name.toLowerCase().includes(leadQuery.toLowerCase())
+	);
+	const comboOptions: { id: string; label: string }[] = filteredUsers.map(u => ({
+		id: String(u.id),
+		label: u.full_name,
+	}));
+
+	useEffect(() => {
+		function handleClickOutside(e: MouseEvent) {
+			if (leadBoxRef.current && !leadBoxRef.current.contains(e.target as Node)) {
+				setLeadOpen(false);
+				// Snap the visible text back to the actual selection if the
+				// user typed something then clicked away without picking.
+				setLeadQuery(selectedLead?.full_name ?? '');
+			}
+		}
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => document.removeEventListener('mousedown', handleClickOutside);
+	}, [selectedLead]);
+
+	const selectLead = (id: string, label: string) => {
+		setLeadId(id);
+		setLeadQuery(label);
+		setLeadOpen(false);
+	};
+
+	const handleLeadKeyDown = (e: React.KeyboardEvent) => {
+		if (!leadOpen) {
+			if (e.key === 'ArrowDown' || e.key === 'Enter') {
+				setLeadOpen(true);
+				setHighlightIndex(0);
+			}
+			return;
+		}
+
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			setHighlightIndex(i => Math.min(i + 1, comboOptions.length - 1));
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			setHighlightIndex(i => Math.max(i - 1, 0));
+		} else if (e.key === 'Enter') {
+			e.preventDefault();
+			const opt = comboOptions[highlightIndex];
+			if (opt) selectLead(opt.id, opt.label);
+		} else if (e.key === 'Escape') {
+			setLeadOpen(false);
+			setLeadQuery(selectedLead?.full_name ?? '');
+		}
+	};
 
 	const handleCreate = async () => {
 		setLoading(true);
@@ -107,18 +171,45 @@ export default function NewProjectPage() {
 						<label className="text-xs text-muted uppercase tracking-wide">
 							Lead <span className="text-danger">*</span>
 						</label>
-						<select
-							className="text-sm text-text bg-surface border border-border rounded px-3 py-2.5 outline-none focus:border-accent transition-colors cursor-pointer"
-							value={leadId}
-							onChange={e => setLeadId(e.target.value)}
-						>
-							<option value="">Select a lead</option>
-							{users?.map(u => (
-								<option key={u.id} value={u.id}>
-									{u.full_name} ({u.username})
-								</option>
-							))}
-						</select>
+						<div className="relative" ref={leadBoxRef}>
+							<input
+								className="w-full text-sm text-text bg-surface border border-border rounded px-3 py-2.5 outline-none focus:border-accent transition-colors"
+								placeholder="Select a lead"
+								value={leadQuery}
+								onChange={e => {
+									setLeadQuery(e.target.value);
+									setLeadId('');
+									setLeadOpen(true);
+									setHighlightIndex(0);
+								}}
+								onFocus={() => setLeadOpen(true)}
+								onKeyDown={handleLeadKeyDown}
+							/>
+							{leadOpen && (
+								<div className="absolute top-[calc(100%+4px)] left-0 right-0 max-h-48 overflow-y-auto bg-surface border border-border rounded shadow-md z-10">
+									{comboOptions.length === 0 ? (
+										<div className="text-sm text-muted px-3 py-2">No matches</div>
+									) : (
+										comboOptions.map((opt, i) => (
+											<div
+												key={opt.id}
+												className={
+													'text-sm text-text px-3 py-2 cursor-pointer ' +
+													(i === highlightIndex ? 'bg-bg' : '')
+												}
+												onMouseDown={e => {
+													e.preventDefault();
+													selectLead(opt.id, opt.label);
+												}}
+												onMouseEnter={() => setHighlightIndex(i)}
+											>
+												{opt.label}
+											</div>
+										))
+									)}
+								</div>
+							)}
+						</div>
 					</div>
 
 					<div className="flex flex-col gap-1.5">

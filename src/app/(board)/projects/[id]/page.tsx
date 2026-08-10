@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import {
 	DndContext,
@@ -33,7 +33,8 @@ import {
 	useSetAppBarActions,
 	useSetBoardTitle,
 	useSetBoardTitleAdornment,
-	useSetBoardLogo,    
+	useSetBoardLogo,
+	useSetBoardThemeColor,
 	useSetBoardState
 } from '@/components/layout/AppBarActionsContext';
 import ProjectGuard from '@/components/feedback/ProjectGuard';
@@ -71,6 +72,7 @@ interface Member {
 		id: number;
 		full_name: string;
 		system_role: 'admin' | 'team_member';
+		profile_completed: boolean;
 	};
 }
 
@@ -85,6 +87,7 @@ interface Project {
 	task_default_submission_mode: 'require' | 'no_require' | 'match_last';
 	is_system: boolean;
 	logo_url: string | null;
+	theme_color: string | null;
 }
 
 const COLUMNS: { key: Task['status']; label: string }[] = [
@@ -93,18 +96,39 @@ const COLUMNS: { key: Task['status']; label: string }[] = [
 	{ key: 'submitted', label: 'Submitted' },
 ];
 
+// Set to true to use the theme-derived accent colors for priority (the
+// original maroon-palette behavior). When false (default), priority uses a
+// fixed Green / Yellow / Red-Orange palette regardless of the active theme.
+// Overdue tasks always use the danger color in either mode.
+const inheritPriorityColors = false;
+
 // Priority accent — pulled from the maroon-ish theme palette itself
 // (accent = deep maroon, accent-hover = warm coral, muted = soft brown)
 // rather than generic red/green/blue, so priority coloring stays
-// consistent with the rest of the UI.
+// consistent with the rest of the UI, when inheritPriorityColors is true.
 function getPriorityCardClasses(priority: string): { bg: string; border: string; accent: string } {
+	if (inheritPriorityColors) {
+		switch (priority) {
+			case 'high':
+				return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-accent' };
+			case 'medium':
+				return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-accent-hover' };
+			case 'low':
+				return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-muted' };
+			default:
+				return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-border' };
+		}
+	}
+
+	// Fixed priority palette: Green (low), Yellow (medium), Red-Orange (high).
+	// Danger red for overdue is handled separately in TaskCardVisual.
 	switch (priority) {
 		case 'high':
-			return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-accent' };
+			return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-[#ff4d1c]' };
 		case 'medium':
-			return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-accent-hover' };
+			return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-[#f5c518]' };
 		case 'low':
-			return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-muted' };
+			return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-[#2e9e44]' };
 		default:
 			return { bg: 'bg-surface', border: 'border-border', accent: 'border-l-border' };
 	}
@@ -327,6 +351,10 @@ export default function ProjectTasksPage() {
 
 	const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
+	const searchParams = useSearchParams();
+	const openedFromNotifRef = useRef(false);
+	
+
 	useEffect(() => {
 		setUser(getUser());
 	}, []);
@@ -334,6 +362,18 @@ export default function ProjectTasksPage() {
 	const { data: project, error, isLoading, mutate } = useSWR<Project>(
 		user ? `/projects/${projectId}?user=${user.id}` : null
 	);
+
+	useEffect(() => {
+		if (openedFromNotifRef.current) return; // only auto-open once per page load
+		const taskIdParam = searchParams.get('task');
+		if (!taskIdParam || !project?.tasks) return;
+
+		const target = project.tasks.find(t => t.id === Number(taskIdParam));
+		if (target) {
+			setSelectedTask(target);
+			openedFromNotifRef.current = true;
+		}
+	}, [searchParams, project?.tasks]);
 
 	useEffect(() => {
 		if (project?.tasks) {
@@ -405,6 +445,9 @@ export default function ProjectTasksPage() {
 	const boardLogoUrl = error ? null : project?.logo_url ?? null;
 	useSetBoardLogo(boardLogoUrl);
 
+	const boardThemeColor = error ? null : project?.theme_color ?? null;
+	useSetBoardThemeColor(boardThemeColor);
+
 	const syncIndicator = useMemo(
 		() => (
 			<span className={`font-mono text-xs ${syncStatus === 'syncing' ? 'text-accent' : 'text-muted'}`}>
@@ -440,7 +483,7 @@ export default function ProjectTasksPage() {
 
 				{canManage && (
 					<button
-						className="text-sm font-medium text-white bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover"
+						className="text-sm font-medium text-accent-foreground bg-accent border-none rounded px-4 py-2 cursor-pointer transition-colors hover:bg-accent-hover"
 						onClick={() => setShowCreateModal(true)}
 					>
 						New Task

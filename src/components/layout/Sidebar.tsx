@@ -1,8 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { FolderKanban, House, Users } from 'lucide-react';
+import { FolderKanban, House, Users, ShieldCheck } from 'lucide-react';
+import { getUser } from '@/lib/auth';
+import type { User } from '@/lib/auth';
 
 interface SidebarProps {
 	collapsed: boolean;
@@ -15,6 +18,11 @@ export default function Sidebar({
 }: SidebarProps) {
 	const router = useRouter();
 	const pathname = usePathname();
+	const [user, setUser] = useState<User | null>(null);
+
+	useEffect(() => {
+		setUser(getUser());
+	}, []);
 
 	const navigation = [
 		{
@@ -32,6 +40,15 @@ export default function Sidebar({
 			href: '/users',
 			icon: Users,
 		},
+		...(user?.system_role === 'admin'
+			? [
+					{
+						label: 'Admin Account',
+						href: '/admin',
+						icon: ShieldCheck,
+					},
+				]
+			: []),
 	];
 
 	return (
@@ -52,9 +69,9 @@ export default function Sidebar({
 					<Image
 						src="/logo.png"
 						alt="Project Management System"
-						width={32}
-						height={32}
-						className="h-8 w-8 shrink-0 object-contain"
+						width={320}
+						height={320}
+						className="h-10 w-10 shrink-0 object-contain"
 						priority
 					/>
 

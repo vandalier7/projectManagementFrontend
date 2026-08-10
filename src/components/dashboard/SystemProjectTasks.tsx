@@ -54,6 +54,7 @@ interface Member {
 		id: number;
 		full_name: string;
 		system_role: 'admin' | 'team_member';
+		profile_completed: boolean;
 	};
 }
 

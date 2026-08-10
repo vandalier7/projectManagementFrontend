@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import { getUser } from '@/lib/auth';
 import type { User } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
-import { useSetBoardState, useSetBoardTitle } from '@/components/layout/AppBarActionsContext';
+import { useSetBoardState, useSetBoardTitle, useSetBoardThemeColor } from '@/components/layout/AppBarActionsContext';
 import { UserMinus, UserPlus } from 'lucide-react';
 import AddProjectMemberModal from '@/components/AddProjectMemberModal';
 import { useSetAppBarActions, useSetBoardLogo, useBoardState } from '@/components/layout/AppBarActionsContext';
@@ -23,6 +23,7 @@ interface ProjectMember {
 		phone: string | null;
 		department: string | null;
 		avatar_url: string | null;
+		profile_completed: boolean;
 	};
 }
 
@@ -40,6 +41,7 @@ interface Project {
 	members: ProjectMember[];
 	tasks: Task[];
 	logo_url: string | null;
+	theme_color: string | null;
 }
 
 interface UserRecord {
@@ -51,6 +53,7 @@ interface UserRecord {
 	phone: string | null;
 	department: string | null;
 	avatar_url: string | null;
+	profile_completed: boolean;
 }
 
 function getInitials(name: string): string {
@@ -126,6 +129,7 @@ export default function ProjectMembersPage() {
 
 	useSetBoardTitle(project?.name ? `${project.name} / Members` : null);
 	useSetBoardLogo(project?.logo_url ?? null);
+	useSetBoardThemeColor(project?.theme_color ?? null);
 
 	const isAdmin = currentUser?.system_role === 'admin';
 	const isLead = currentUser?.id === project?.lead_id;
@@ -135,7 +139,7 @@ export default function ProjectMembersPage() {
 		project && canManage ? (
 			<button
 				onClick={() => setShowAddMemberModal(true)}
-				className="flex items-center gap-2 rounded bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+				className="flex items-center gap-2 rounded bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
 			>
 				Add Member
 			</button>
@@ -145,11 +149,13 @@ export default function ProjectMembersPage() {
 
 	const leadMember = useMemo(() => {
 		if (!project) return null;
+		if (!project.members) return null;
 		return project.members.find(m => m.user.id === project.lead_id) ?? null;
 	}, [project]);
 
 	const nonLeadMembers = useMemo(() => {
 		if (!project) return [];
+		if (!project.members) return [];
 		return project.members.filter(m => m.user.id !== project.lead_id);
 	}, [project]);
 

@@ -13,6 +13,7 @@ interface User {
 	phone: string | null;
 	department: string | null;
 	avatar_url: string | null;
+	profile_completed: boolean;
 }
 
 interface ProjectMember {
@@ -70,6 +71,7 @@ export default function AddProjectMemberModal({
 
 		return users
 			.filter(user => !memberIds.has(user.id))
+			.filter(user => user.profile_completed)
 			.filter(user => {
 				if (!search) return true;
 

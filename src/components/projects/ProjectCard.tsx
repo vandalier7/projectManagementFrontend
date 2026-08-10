@@ -134,7 +134,7 @@ export default function ProjectCard({
 					{project.name}
 				</span>
 				<span className={`font-mono text-xs tracking-wide px-2 py-0.5 rounded lowercase whitespace-nowrap ${chipStyles[project.status] ?? 'bg-gray-100 text-muted'}`}>
-					{project.status}
+					{project.status.replace(/_/g, ' ')}
 				</span>
 			</div>
 
