@@ -1,21 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SWRProvider } from '@/lib/swr-provider';
-import ThemeInit from '@/components/ThemeInit';
+import { SWRProvider } from '@/lib/api/swr-provider';
+import ThemeInit from '@/components/layout/ThemeInit';
 
 
 // import '@/styles/tokens.css';
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: 'ProjectDashboard',

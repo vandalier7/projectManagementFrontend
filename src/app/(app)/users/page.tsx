@@ -1,96 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { getUser } from '@/lib/auth';
-import type { User } from '@/lib/auth';
-import { Plus, UserMinus, KeyRound, Pencil, MoreVertical } from 'lucide-react';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import Avatar from '@/components/ui/Avatar';
+import type { User } from '@/types';
+import UserActionsMenu from '@/features/users/components/UserActionsMenu';
+import { openCredentialsEmail, openGmailCompose, type GeneratedCredentials } from '@/features/users/lib/gmail';
+import { Plus } from 'lucide-react';
 import { useSetAppBarActions } from '@/components/layout/AppBarActionsContext';
 import { apiClient } from '@/lib/api';
-import SecurityConfirmation, { SecurityLevel } from '@/components/SecurityConfirmationModal';
+import SecurityConfirmation, { SecurityLevel } from '@/components/ui/SecurityConfirmationModal';
 
-interface UserRecord {
-	id: number;
-	full_name: string;
-	username: string;
-	system_role: 'admin' | 'team_member';
-	email: string;
-	phone: string | null;
-	department: string | null;
-	avatar_url: string | null;
-	profile_completed: boolean;
-	must_change_password: boolean;
-}
-
-interface GeneratedCredentials {
-	email: string;
-	password: string;
-}
-
-function getInitials(name: string): string {
-	if (name == null) return '';
-	return name
-		.split(' ')
-		.map(part => part[0])
-		.join('')
-		.toUpperCase()
-		.slice(0, 2);
-}
-
-function MemberAvatar({ user }: { user: UserRecord }) {
-	const [imgError, setImgError] = useState(false);
-
-	if (user.avatar_url && !imgError) {
-		return (
-			<img
-				src={user.avatar_url}
-				alt={user.full_name}
-				onError={() => setImgError(true)}
-				className="h-8 w-10 rounded-full object-cover shrink-0"
-			/>
-		);
-	}
-
-	return (
-		<div className="h-8 w-12 rounded-full bg-accent/10 text-accent flex items-center justify-center font-semibold shrink-0">
-			{getInitials(user.full_name)}
-		</div>
-	);
-}
-
-function openCredentialsEmail(credentials: GeneratedCredentials) {
-	const to = encodeURIComponent(credentials.email);
-	const subject = encodeURIComponent('Your new temporary password');
-	const body = encodeURIComponent(
-		`Hello,
-
-Your password has been reset by an administrator.
-
-Please log in using:
-
-Email: ${credentials.email}
-Temporary Password: ${credentials.password}
-
-You will be asked to set a new password after your next login.
-
-Thank you.`
-	);
-
-	window.open(
-		`https://mail.google.com/mail/?view=cm&fs=1&to=${to}&su=${subject}&body=${body}`,
-		'_blank'
-	);
-}
-
-function openGmailCompose(email: string) {
-	const to = encodeURIComponent(email);
-
-	window.open(
-		`https://mail.google.com/mail/?view=cm&fs=1&to=${to}`,
-		'_blank'
-	);
-}
 
 interface PendingAction {
 	userId: number;
@@ -100,126 +22,16 @@ interface PendingAction {
 	run: (password?: string) => Promise<void>;
 }
 
-interface UserActionsMenuProps {
-	user: UserRecord;
-	open: boolean;
-	onToggle: () => void;
-	onClose: () => void;
-	onEdit: (user: UserRecord) => void;
-	onForcePasswordChange: (user: UserRecord) => void;
-	onRemove: (user: UserRecord) => void;
-	removing: boolean;
-}
-
-function UserActionsMenu({
-	user,
-	open,
-	onToggle,
-	onClose,
-	onEdit,
-	onForcePasswordChange,
-	onRemove,
-	removing,
-}: UserActionsMenuProps) {
-	const containerRef = useRef<HTMLDivElement | null>(null);
-
-	useEffect(() => {
-		if (!open) return;
-
-		function handleClickOutside(event: MouseEvent) {
-			if (
-				containerRef.current &&
-				!containerRef.current.contains(event.target as Node)
-			) {
-				onClose();
-			}
-		}
-
-		function handleKeyDown(event: KeyboardEvent) {
-			if (event.key === 'Escape') onClose();
-		}
-
-		document.addEventListener('mousedown', handleClickOutside);
-		document.addEventListener('keydown', handleKeyDown);
-		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('keydown', handleKeyDown);
-		};
-	}, [open, onClose]);
-
-	return (
-		<div className="relative shrink-0" ref={containerRef}>
-			<button
-				onClick={onToggle}
-				disabled={removing}
-				className="cursor-pointer shrink-0 text-muted hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed p-1 rounded-md hover:bg-bg"
-				title="More actions"
-				aria-haspopup="menu"
-				aria-expanded={open}
-			>
-				<MoreVertical className="h-4 w-4" />
-			</button>
-
-			{open && (
-				<div
-					role="menu"
-					className="absolute right-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-surface py-1 shadow-lg"
-				>
-					<button
-						role="menuitem"
-						onClick={() => {
-							onClose();
-							onEdit(user);
-						}}
-						className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-bg cursor-pointer"
-					>
-						<Pencil className="h-4 w-4 text-muted" />
-						Edit Details
-					</button>
-
-					<button
-						role="menuitem"
-						onClick={() => {
-							onClose();
-							onForcePasswordChange(user);
-						}}
-						className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text hover:bg-bg cursor-pointer"
-					>
-						<KeyRound className="h-4 w-4 text-muted" />
-						Change Password
-					</button>
-
-					<button
-						role="menuitem"
-						onClick={() => {
-							onClose();
-							onRemove(user);
-						}}
-						className="flex w-full items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-bg cursor-pointer"
-					>
-						<UserMinus className="h-4 w-4" />
-						Delete User
-					</button>
-				</div>
-			)}
-		</div>
-	);
-}
-
 export default function UsersPage() {
 	const router = useRouter();
-	const [currentUser, setCurrentUser] = useState<User | null>(null);
+	const currentUser = useCurrentUser();
 	const [removingId, setRemovingId] = useState<number | null>(null);
 	const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 	const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
 	const [generatedCredentials, setGeneratedCredentials] =
 		useState<GeneratedCredentials | null>(null);
 
-	useEffect(() => {
-		setCurrentUser(getUser());
-	}, []);
-
-	const { data: users, isLoading, mutate } = useSWR<UserRecord[]>(
+	const { data: users, isLoading, mutate } = useSWR<User[]>(
 		currentUser ? '/users' : null
 	);
 
@@ -246,11 +58,11 @@ export default function UsersPage() {
 		);
 	}, [users]);
 
-	const handleEdit = (user: UserRecord) => {
+	const handleEdit = (user: User) => {
 		router.push(`/users/${user.id}/edit`);
 	};
 
-	const handleRemove = (user: UserRecord) => {
+	const handleRemove = (user: User) => {
 		setPendingAction({
 			userId: user.id,
 			title: 'Delete User',
@@ -271,7 +83,7 @@ export default function UsersPage() {
 		});
 	};
 
-	const handleForcePasswordChange = (user: UserRecord) => {
+	const handleForcePasswordChange = (user: User) => {
 		setPendingAction({
 			userId: user.id,
 			title: 'Change Password',
@@ -320,7 +132,7 @@ export default function UsersPage() {
 						key={user.id}
 						className="bg-surface border border-border rounded-xl px-6 py-5 flex items-center gap-3"
 					>
-						<MemberAvatar user={user} />
+						<Avatar name={user.full_name} src={user.avatar_url} className="h-8 w-10 text-sm" />
 
 						<div className="flex flex-col min-w-0 w-64">
 							<span className="text-sm font-semibold text-text truncate">

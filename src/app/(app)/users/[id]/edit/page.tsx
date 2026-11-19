@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { apiClient } from '@/lib/api';
-import SecurityConfirmation from '@/components/SecurityConfirmationModal';
+import { apiClient, getErrorMessage } from '@/lib/api';
+import SecurityConfirmation from '@/components/ui/SecurityConfirmationModal';
 
 const REQUIRED_EMAIL_DOMAIN = '@g.batstate-u.edu.ph';
 
@@ -76,8 +76,8 @@ export default function EditUserPage() {
 
 			setConfirmOpen(false);
 			router.push('/users');
-		} catch (err: any) {
-			setError(err.message);
+		} catch (err) {
+			setError(getErrorMessage(err));
 			setConfirmOpen(false);
 		} finally {
 			setSaving(false);

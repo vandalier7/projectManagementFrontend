@@ -1,41 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import useSWR from 'swr';
 import { Plus } from 'lucide-react';
-import { getUser } from '@/lib/auth';
-import type { User } from '@/lib/auth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useProjects } from '@/features/projects/hooks/useProject';
 import { useSetAppBarActions } from '@/components/layout/AppBarActionsContext';
-import ProjectCard from '@/components/projects/ProjectCard';
-
-interface Project {
-	id: number;
-	name: string;
-	status: string;
-	lead: {
-		full_name: string;
-	} | null;
-	banner_url: string | null
-}
-
-const chipStyles: Record<string, string> = {
-	active: 'bg-green-100 text-green-800',
-	inactive: 'bg-gray-100 text-muted',
-	archived: 'bg-gray-100 text-muted',
-};
+import ProjectCard from '@/features/projects/components/ProjectCard';
 
 export default function ProjectsPage() {
 	const router = useRouter();
-	const [user, setUser] = useState<User | null>(null);
-
-	useEffect(() => {
-		setUser(getUser());
-	}, []);
-
-	const { data: projects, error, isLoading } = useSWR<Project[]>(
-		user ? `/projects?user=${user.id}` : null
-	);
+	const user = useCurrentUser();
+	const { data: projects, error, isLoading } = useProjects(user != null);
 
 	const newProjectAction = useMemo(
 		() =>
@@ -83,7 +59,6 @@ export default function ProjectsPage() {
 					<ProjectCard
 						key={project.id}
 						project={project}
-						chipStyles={chipStyles}
 						bannerUrl={project.banner_url}
 						onClick={() => router.push(`/projects/${project.id}`)}
 					/>

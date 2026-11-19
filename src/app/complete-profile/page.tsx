@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { getToken, getUser, clearToken, clearUser } from '@/lib/auth';
 
 export default function CompleteProfilePage() {
@@ -56,8 +56,8 @@ export default function CompleteProfilePage() {
 			clearUser();
 
 			router.replace('/');
-		} catch (err: any) {
-			setError(err.message ?? 'Something went wrong.');
+		} catch (err) {
+			setError(getErrorMessage(err, 'Something went wrong.'));
 		} finally {
 			setLoading(false);
 		}

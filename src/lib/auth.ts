@@ -1,3 +1,4 @@
+import type { User } from '@/types';
 import Cookies from 'js-cookie';
 import { mutate } from 'swr';
 
@@ -23,18 +24,35 @@ export const clearToken = (): void => {
 
 // --- User helpers ---
 
+// Fired on this tab when the stored user changes (the browser's own 'storage'
+// event only fires in *other* tabs). useCurrentUser listens for both.
+export const USER_CHANGED_EVENT = 'auth-user-changed';
+
+const notifyUserChanged = () => window.dispatchEvent(new Event(USER_CHANGED_EVENT));
+
+// Parsed once per distinct stored value, so repeated reads return the same
+// object — required by useSyncExternalStore, and cheaper.
+let cachedRaw: string | null = null;
+let cachedUser: User | null = null;
+
 export const getUser = (): User | null => {
 	if (typeof window === 'undefined') return null;
 	const raw = localStorage.getItem(USER_KEY);
-	return raw ? JSON.parse(raw) : null;
+	if (raw !== cachedRaw) {
+		cachedRaw = raw;
+		cachedUser = raw ? JSON.parse(raw) : null;
+	}
+	return cachedUser;
 };
 
 export const setUser = (user: User): void => {
 	localStorage.setItem(USER_KEY, JSON.stringify(user));
+	notifyUserChanged();
 };
 
 export const clearUser = (): void => {
 	localStorage.removeItem(USER_KEY);
+	notifyUserChanged();
 };
 
 // --- SWR cache helper ---
@@ -93,16 +111,5 @@ export const logout = async (): Promise<void> => {
 
 // --- Types ---
 
-export interface User {
-	id: number;
-	username: string;
-	email: string;
-	full_name: string;
-	phone: string | null;
-	department: string | null;
-	system_role: 'admin' | 'team_member';
-	status: string;
-	avatar_url: string | null;
-	profile_completed: boolean;
-	must_change_password: boolean;
-}
+// Kept as a re-export so existing `import type { User } from '@/lib/auth'` works.
+export type { User } from '@/types';

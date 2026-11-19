@@ -1,37 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Project Dashboard — Frontend
 
-## Getting Started
+Next.js 16 (App Router) + TypeScript + Tailwind client for Project Dashboard.
+Data comes from the Laravel API in
+[projectManagementSystem](https://github.com/vandalier7/projectManagementSystem)
+and is fetched with SWR.
 
-First, run the development server:
+## Running it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+NEXT_PUBLIC_API_URL=http://localhost:8080/api npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Or with Docker: `docker compose up` (serves on :3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Checks: `npx tsc --noEmit`, `npm run lint`, `npm run build`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Structure
 
-## Learn More
+The app follows a component-based architecture organised by feature. `app/`
+only handles routing; each page is a thin file that loads data and composes
+feature components.
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/                 Routes only (pages + layouts). Keep these thin.
+├── features/            One folder per domain feature
+│   ├── tasks/           Task lifecycle UI, shared everywhere a task appears
+│   │   ├── api.ts       Typed wrappers for /tasks endpoints
+│   │   ├── index.ts     Public exports — import from '@/features/tasks'
+│   │   ├── components/  TaskDetailModal (+ parts), create/edit/reject modals, chips
+│   │   ├── hooks/       useTaskHistory, useAsyncAction
+│   │   └── lib/         permissions (mirrors the API's lifecycle rules), display constants
+│   ├── board/           Kanban board: columns, cards, drag-to-reorder
+│   ├── dashboard/       Home widgets: Prioritized Tasks, General
+│   ├── projects/        Project data hooks, overview, settings sections
+│   ├── members/         Project members page components
+│   ├── timeline/        Completed-task timeline
+│   ├── users/           User admin components
+│   └── notifications/   Notification bell + dropdown
+├── components/
+│   ├── ui/              App-wide primitives: Modal, Button, Field, Avatar, rich text
+│   ├── layout/          Shells, app bars, sidebars
+│   └── feedback/        Loading / not-found / access-denied states
+├── hooks/               App-wide hooks: useCurrentUser, useAuthGuard, useClickOutside
+├── lib/                 api client, auth session, dates, theme helpers
+└── types/               Shared domain types (Task, Project, User, …)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Conventions
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-"# projectManagementFrontend" 
+- **Types** live in `src/types`. Don't redeclare `Task`, `Project` and the like
+  in components.
+- **Data**: use the feature hooks (`useProject(id)`, `useProjects()`) and API
+  wrappers (`taskApi`). Pages share one SWR cache entry per project, so
+  switching tabs doesn't refetch.
+- **Identity**: `useCurrentUser()` is for UI decisions only. Never send a user
+  id to the API to say who is acting; the API reads it from the auth token.
+- **Permissions**: `features/tasks/lib/permissions.ts` decides which task
+  buttons to show. It mirrors the backend's `TaskLifecycleEngine`. If you
+  change one, change the other.
+- **Use the tasks feature through its public entry point**, `@/features/tasks`,
+  not its internal files. Do the same for other features if they grow an
+  `index.ts`.

@@ -3,9 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { getUser } from '@/lib/auth';
-import type { User } from '@/lib/auth';
-import { apiClient } from '@/lib/api';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { apiClient, getErrorMessage } from '@/lib/api';
 
 interface UserOption {
 	id: number;
@@ -17,8 +16,8 @@ interface UserOption {
 export default function NewProjectPage() {
 	const router = useRouter();
 
-	const [user, setUser] = useState<User | null>(null);
-	const [checkedAccess, setCheckedAccess] = useState(false);
+	const user = useCurrentUser();
+	const checkedAccess = user?.system_role === 'admin';
 
 	const [name, setName] = useState('');
 	const [description, setDescription] = useState('');
@@ -36,17 +35,10 @@ export default function NewProjectPage() {
 
 	const today = new Date().toISOString().split('T')[0];
 
+	// Only admins can create projects.
 	useEffect(() => {
-		const u = getUser();
-
-		if (u?.system_role !== 'admin') {
-			router.replace('/projects');
-			return;
-		}
-
-		setUser(u);
-		setCheckedAccess(true);
-	}, [router]);
+		if (user && user.system_role !== 'admin') router.replace('/projects');
+	}, [user, router]);
 
 	const { data: users } = useSWR<UserOption[]>(
 		checkedAccess ? '/users' : null
@@ -133,8 +125,8 @@ export default function NewProjectPage() {
 			await mutate(key => typeof key === 'string' && key.startsWith('/projects'), undefined, { revalidate: true });
 
 			router.replace(`/projects/${newProject.id}`);
-		} catch (err: any) {
-			setError(err.message);
+		} catch (err) {
+			setError(getErrorMessage(err));
 		} finally {
 			setLoading(false);
 		}

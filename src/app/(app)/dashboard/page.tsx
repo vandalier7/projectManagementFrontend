@@ -1,7 +1,7 @@
 'use client';
 
-import MyPriorityTasks from "@/components/dashboard/MyPriorityTasks";
-import SystemProjectTasks from "@/components/dashboard/SystemProjectTasks";
+import MyPriorityTasks from "@/features/dashboard/components/MyPriorityTasks";
+import SystemProjectTasks from "@/features/dashboard/components/SystemProjectTasks";
 
 export default function DashboardPage() {
 	return (
