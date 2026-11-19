@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { login, getToken } from '@/lib/auth';
+import { getErrorMessage } from '@/lib/api';
 
 export default function LoginPage() {
 	const router = useRouter();
@@ -29,9 +30,8 @@ export default function LoginPage() {
 			await login(email, password);
 			console.log('login success, redirecting to landing page');
 			router.replace('/');
-		} catch (err: any) {
-			console.log('login error:', err);
-			setError(err.message ?? 'Something went wrong.');
+		} catch (err) {
+			setError(getErrorMessage(err, 'Something went wrong.'));
 		} finally {
 			setLoading(false);
 		}

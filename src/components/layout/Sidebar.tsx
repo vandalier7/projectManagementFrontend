@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { FolderKanban, House, Users, ShieldCheck } from 'lucide-react';
-import { getUser } from '@/lib/auth';
-import type { User } from '@/lib/auth';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 interface SidebarProps {
 	collapsed: boolean;
@@ -18,11 +16,7 @@ export default function Sidebar({
 }: SidebarProps) {
 	const router = useRouter();
 	const pathname = usePathname();
-	const [user, setUser] = useState<User | null>(null);
-
-	useEffect(() => {
-		setUser(getUser());
-	}, []);
+	const user = useCurrentUser();
 
 	const navigation = [
 		{

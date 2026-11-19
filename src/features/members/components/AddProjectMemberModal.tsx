@@ -1,27 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 import { Check, ChevronDown } from 'lucide-react';
-
-interface User {
-	id: number;
-	full_name: string;
-	username: string;
-	system_role: 'admin' | 'team_member';
-	email: string;
-	phone: string | null;
-	department: string | null;
-	avatar_url: string | null;
-	profile_completed: boolean;
-}
-
-interface ProjectMember {
-	id: number;
-	user: {
-		id: number;
-	};
-}
+import { getInitials } from '@/components/ui/Avatar';
+import type { ProjectMember, User } from '@/types';
 
 interface Props {
 	projectId: string | string[];
@@ -29,15 +12,6 @@ interface Props {
 	members: ProjectMember[];
 	onClose: () => void;
 	onMutate: () => void;
-}
-
-function getInitials(name: string): string {
-	return name
-		.split(' ')
-		.map(part => part[0])
-		.join('')
-		.toUpperCase()
-		.slice(0, 2);
 }
 
 export default function AddProjectMemberModal({
@@ -117,8 +91,8 @@ export default function AddProjectMemberModal({
 
 			onMutate();
 			onClose();
-		} catch (err: any) {
-			setError(err.message);
+		} catch (err) {
+			setError(getErrorMessage(err));
 		} finally {
 			setLoading(false);
 		}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { getErrorMessage } from '@/lib/api';
 
 export type SecurityLevel = 'low' | 'high';
 
@@ -54,8 +55,8 @@ export default function SecurityConfirmation({
 
 		try {
 			await onConfirm(securityLevel === 'high' ? password : undefined);
-		} catch (err: any) {
-			setError(err.message ?? 'Something went wrong.');
+		} catch (err) {
+			setError(getErrorMessage(err, 'Something went wrong.'));
 			setLoading(false);
 			return;
 		}

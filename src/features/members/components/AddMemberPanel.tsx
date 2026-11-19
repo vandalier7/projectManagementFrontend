@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 
 interface MemberUser {
 	id: number;
@@ -61,8 +61,8 @@ export default function AddMemberPanel({ projectId, members, allUsers, onMutate 
 			setQuery('');
 			setIsOpen(false);
 			onMutate();
-		} catch (err: any) {
-			setError(err.message ?? 'Failed to add member.');
+		} catch (err) {
+			setError(getErrorMessage(err, 'Failed to add member.'));
 		} finally {
 			setSubmitting(false);
 		}

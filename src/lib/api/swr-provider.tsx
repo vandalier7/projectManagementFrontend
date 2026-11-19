@@ -2,7 +2,7 @@
 
 import { SWRConfig } from 'swr';
 import { Cache } from 'swr';
-import { fetcher } from '@/lib/fetcher';
+import { fetcher } from '@/lib/api/fetcher';
 
 export function SWRProvider({ children }: { children: React.ReactNode }) {
   return (

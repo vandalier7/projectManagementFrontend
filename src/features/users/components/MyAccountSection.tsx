@@ -4,14 +4,15 @@ import { useState } from 'react';
 import { apiClient } from '@/lib/api';
 import { setUser as persistUser } from '@/lib/auth';
 import type { User } from '@/lib/auth';
-import SecurityConfirmation from '@/components/SecurityConfirmationModal';
+import SecurityConfirmation from '@/components/ui/SecurityConfirmationModal';
 
 interface MyAccountSectionProps {
 	user: User;
-	onUserUpdated: (user: User) => void;
 }
 
-export default function MyAccountSection({ user, onUserUpdated }: MyAccountSectionProps) {
+// Saved changes are written to the stored session (persistUser), which
+// useCurrentUser() subscribers pick up automatically.
+export default function MyAccountSection({ user }: MyAccountSectionProps) {
 	// --- Email ---
 	const [newEmail, setNewEmail] = useState('');
 	const [emailError, setEmailError] = useState('');
@@ -37,18 +38,17 @@ export default function MyAccountSection({ user, onUserUpdated }: MyAccountSecti
 		setEmailError('');
 
 		try {
-			const updated = await apiClient('/profile/change-email', {
+			const updated = await apiClient<User>('/profile/change-email', {
 				method: 'POST',
 				body: JSON.stringify({ email: newEmail, password }),
 			});
 
 			persistUser(updated);
-			onUserUpdated(updated);
 			setEmailConfirmOpen(false);
 			setNewEmail('');
 			setEmailSuccess('Email updated successfully.');
-		} catch (err: any) {
-			setEmailError(err.message ?? 'Failed to update email.');
+		} catch (err) {
+			setEmailError(err instanceof Error ? err.message : 'Failed to update email.');
 			setEmailConfirmOpen(false);
 		} finally {
 			setEmailSaving(false);
@@ -94,8 +94,8 @@ export default function MyAccountSection({ user, onUserUpdated }: MyAccountSecti
 			setNewPassword('');
 			setConfirmPassword('');
 			setPasswordSuccess('Password changed successfully.');
-		} catch (err: any) {
-			setPasswordError(err.message ?? 'Failed to change password.');
+		} catch (err) {
+			setPasswordError(err instanceof Error ? err.message : 'Failed to change password.');
 		} finally {
 			setPasswordSaving(false);
 		}

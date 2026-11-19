@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
 
 const REQUIRED_EMAIL_DOMAIN = '@g.batstate-u.edu.ph';
 
@@ -40,8 +40,8 @@ export default function NewUserPage() {
 				email: response.user.email,
 				password: response.temp_password,
 			});
-		} catch (err: any) {
-			setError(err.message);
+		} catch (err) {
+			setError(getErrorMessage(err));
 		} finally {
 			setLoading(false);
 		}

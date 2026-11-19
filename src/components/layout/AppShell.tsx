@@ -2,20 +2,13 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { mutate } from 'swr';
 
 import Sidebar from './Sidebar';
 import AppBar from './AppBar';
 import { AppBarActionsProvider, useAppBarActionsValue } from './AppBarActionsContext';
 
-import {
-	getToken,
-	getUser,
-	clearToken,
-	clearUser,
-	logout,
-	type User,
-} from '@/lib/auth';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
+import { logout } from '@/lib/auth';
 
 interface AppShellProps {
 	children: ReactNode;
@@ -34,7 +27,7 @@ function AppShellLayout({ children }: AppShellProps) {
 	const pathname = usePathname();
 	const actions = useAppBarActionsValue();
 
-	const [user, setUser] = useState<User | null>(null);
+	const user = useAuthGuard();
 	const [loggingOut, setLoggingOut] = useState(false);
 
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -51,26 +44,6 @@ function AppShellLayout({ children }: AppShellProps) {
 	const effectiveSidebarCollapsed = isBoardRoute ? true : sidebarCollapsed;
 
 	useEffect(() => {
-		const token = getToken();
-
-		if (!token) {
-			router.replace('/');
-			return;
-		}
-
-		const currentUser = getUser();
-		setUser(currentUser);
-
-		if (currentUser && !currentUser.profile_completed) {
-			router.replace('/complete-profile');
-		}
-
-		if (currentUser && currentUser.must_change_password) {
-			router.replace('/change-password');
-		}
-	}, [router]);
-
-	useEffect(() => {
 		localStorage.setItem(
 			'sidebar-collapsed',
 			String(sidebarCollapsed)
@@ -79,7 +52,6 @@ function AppShellLayout({ children }: AppShellProps) {
 
 	const handleLogout = async () => {
 		setLoggingOut(true);
-		setUser(null);
 
 		await logout();  // clears token, user, and (now properly awaited) SWR cache
 

@@ -1,4 +1,4 @@
-import { apiClient } from './api';
+import { apiClient } from './client';
 
 // SWR calls this with the key (the path string) as its only argument.
 // useSWR('/projects') → fetcher('/projects') → apiClient('/projects')

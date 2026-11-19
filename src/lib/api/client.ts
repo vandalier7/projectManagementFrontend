@@ -1,4 +1,4 @@
-import { getToken } from './auth';
+import { getToken } from '@/lib/auth';
 
 export class ApiError extends Error {
 	status: number;
@@ -28,10 +28,14 @@ const buildHeaders = (extra?: HeadersInit, isFormData = false): HeadersInit => {
 
 // Wraps fetch with base URL and auth headers.
 // Throws on non-2xx responses with the error message from the API.
-export const apiClient = async (
+// Pass the expected response type for a typed result: apiClient<Task>(...).
+// The `any` default keeps older untyped call sites compiling; new code should
+// always pass T (see the typed wrappers in features/*/api.ts).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const apiClient = async <T = any>(
 	path: string,
 	options: RequestInit = {}
-): Promise<any> => {
+): Promise<T> => {
 	const isFormData = options.body instanceof FormData;
 
 	const res = await fetch(`${apiUrl}${path}`, {
@@ -49,8 +53,12 @@ export const apiClient = async (
 	}
 
 	if (res.status === 204) {
-		return null;
+		return null as T;
 	}
 
 	return res.json();
 };
+/** A user-facing message for anything thrown by apiClient (or any error). */
+export function getErrorMessage(err: unknown, fallback = 'Something went wrong.'): string {
+	return err instanceof Error && err.message ? err.message : fallback;
+}

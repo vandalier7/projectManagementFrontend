@@ -1,4 +1,4 @@
-// @/lib/paletteModes.ts
+// @/lib/theme/paletteModes.ts
 
 // Two flat palettes used only to pick readable bg/surface/text/border
 // values for a given accent color's luminance. Not tied to any site-wide

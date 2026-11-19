@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { apiClient } from '@/lib/api';
+import { apiClient, getErrorMessage } from '@/lib/api';
+import { PROJECT_STATUS_OPTIONS } from '../lib/status';
+import type { ProjectSummary } from '@/types';
 
 interface ProjectDetailsFormProps {
 	project: {
@@ -11,17 +13,11 @@ interface ProjectDetailsFormProps {
 		budget: string | null;
 		status: string;
 	};
-	onSaved: (updated: any) => void;
+	onSaved: (updated: Partial<ProjectSummary>) => void;
 }
 
-// TODO: confirm the real set of valid statuses — pulled from the chipStyles
-// placeholder in the settings page (active / on_hold / completed). Swap this
-// out if the backend's status enum differs.
-const STATUS_OPTIONS = [
-	{ value: 'active', label: 'Active' },
-	{ value: 'on_hold', label: 'On Hold' },
-	{ value: 'completed', label: 'Completed' },
-];
+// TODO: confirm these match the backend's project statuses.
+const STATUS_OPTIONS = PROJECT_STATUS_OPTIONS;
 
 export default function ProjectDetailsForm({ project, onSaved }: ProjectDetailsFormProps) {
 	const [name, setName] = useState(project.name);
@@ -64,8 +60,8 @@ export default function ProjectDetailsForm({ project, onSaved }: ProjectDetailsF
 			});
 
 			onSaved(updated);
-		} catch (err: any) {
-			setError(err.message ?? 'Failed to save project details.');
+		} catch (err) {
+			setError(getErrorMessage(err, 'Failed to save project details.'));
 		} finally {
 			setSaving(false);
 		}

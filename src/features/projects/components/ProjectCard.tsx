@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { PROJECT_STATUS_CHIP } from '../lib/status';
 
 const DEFAULT_BANNER_URL = '/project-banner-placeholder.jpg';
 
@@ -11,7 +12,8 @@ interface ProjectCardProps {
 		status: string;
 		lead?: { full_name: string } | null;
 	};
-	chipStyles: Record<string, string>;
+	/** Status → chip classes. Defaults to the shared project status styles. */
+	chipStyles?: Record<string, string>;
 	bannerUrl?: string | null;
 	themeColor?: string | null;
 	onClick?: () => void;
@@ -85,7 +87,7 @@ function withAlpha(hex: string | null | undefined, alpha: number): string {
 
 export default function ProjectCard({
 	project,
-	chipStyles,
+	chipStyles = PROJECT_STATUS_CHIP,
 	bannerUrl,
 	themeColor,
 	onClick,
